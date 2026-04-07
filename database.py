@@ -6,7 +6,7 @@ import os
 # Em produção esta variável vem do Railway/Render (nunca coloque a senha no código)
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/manutencao_ti"
+    "postgresql://postgres.ezhzkxitwocrouohtsax:Reis2411789567@aws-1-sa-east-1.pooler.supabase.com:5432/postgres"
 )
 
 # Correção necessária para o Supabase/Railway (usam postgres:// mas SQLAlchemy precisa postgresql://)

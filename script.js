@@ -44,8 +44,8 @@ function mostrarLogin() {
     document.getElementById("loginErro").style.display    = "none";
 }
 
-// Restaura sessão ativa
-if (api.getUsuarioLogado() && sessionStorage.getItem("jwt_token")) {
+// Restaura sessão — localStorage persiste entre recarregamentos e reaberturas
+if (api.getUsuarioLogado() && localStorage.getItem("jwt_token")) {
     mostrarApp();
 }
 
@@ -77,11 +77,10 @@ document.getElementById("btnLogout").addEventListener("click", () => {
 // ─── Stats ─────────────────────────────────────────────────────────────────────
 async function updateStats() {
     try {
-        const [abertas, finalizadas] = await Promise.all([
-            api.listarManutencoes({ status: "abertas" }),
-            api.listarManutencoes({ status: "finalizadas" }),
-        ]);
-        const pendentes = abertas.filter(m => m.status === "Pendente");
+        const todas = await api.listarManutencoes();
+        const abertas     = todas.filter(m => m.status !== "Concluída" && m.status !== "Cancelada");
+        const finalizadas = todas.filter(m => m.status === "Concluída" || m.status === "Cancelada");
+        const pendentes   = abertas.filter(m => m.status === "Pendente");
         document.getElementById("totalManutencoes").textContent = abertas.length;
         document.getElementById("totalFinalizados").textContent = finalizadas.length;
         document.getElementById("totalPendentes").textContent   = pendentes.length;
@@ -137,11 +136,19 @@ async function loadManutencoes() {
         '<div class="empty-state"><p>Carregando...</p></div>';
 
     try {
-        const lista = await api.listarManutencoes({
-            status: st || "abertas",
-            localizacao: tipo,
-            busca: search,
-        });
+        // Busca TODAS as manutenções e filtra localmente as abertas
+        // (exclui Concluída e Cancelada que ficam na aba Finalizados)
+        const params = {};
+        if (tipo)   params.localizacao = tipo;
+        if (search) params.busca = search;
+        if (st)     params.status = st;   // filtro de status do select (Pendente / Em Andamento)
+
+        let lista = await api.listarManutencoes(params);
+
+        // Se não há filtro de status específico, remove as finalizadas
+        if (!st) {
+            lista = lista.filter(m => m.status !== "Concluída" && m.status !== "Cancelada");
+        }
 
         if (!lista.length) {
             document.getElementById("listaManutencoes").innerHTML =
@@ -383,7 +390,13 @@ async function loadFinalizados() {
 
     document.getElementById("listaFinalizados").innerHTML = '<div class="empty-state"><p>Carregando...</p></div>';
     try {
-        const lista = await api.listarManutencoes({ status: "finalizadas", localizacao: tipo, busca: search });
+        const params = {};
+        if (tipo)   params.localizacao = tipo;
+        if (search) params.busca = search;
+
+        const todas = await api.listarManutencoes(params);
+        // Filtra localmente só as finalizadas
+        const lista = todas.filter(m => m.status === "Concluída" || m.status === "Cancelada");
         if (!lista.length) {
             document.getElementById("listaFinalizados").innerHTML =
                 '<div class="empty-state"><h3>Nenhuma manutenção finalizada</h3></div>';
@@ -432,8 +445,9 @@ async function loadEstatisticasPeriodo() {
     try {
         const ini = document.getElementById("dataInicio").value;
         const fim = document.getElementById("dataFim").value;
-        const lista = await api.listarManutencoes();
-        const filtrada = lista.filter(m => {
+        const todas = await api.listarManutencoes();
+        const filtrada = todas.filter(m => {
+            if (!m.data_inicio) return false;
             const d = new Date(m.data_inicio);
             return d >= new Date(ini) && d <= new Date(fim + "T23:59:59");
         });
