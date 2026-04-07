@@ -14,7 +14,9 @@ app = FastAPI(title="Sistema de Manutenção de TI", version="1.0.0")
 # Permite o frontend (qualquer origem em dev; em produção, coloque a URL real)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # Troque por sua URL do frontend em produção
+    allow_origins=["https://manutencao-frontend-nu.vercel.app/",
+                   "http://localhost:3000",
+                   ],              # Troque por sua URL do frontend em produção
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
