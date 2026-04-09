@@ -29,8 +29,15 @@ USUARIOS_INICIAIS = [
 db = SessionLocal()
 
 for u in USUARIOS_INICIAIS:
-    existe = db.query(models.Usuario).filter(models.Usuario.username == u["username"]).first()
-    if not existe:
+    user = db.query(models.Usuario).filter(models.Usuario.username == u["username"]).first()
+
+    if user:
+        # 🔥 ATUALIZA SENHA
+        user.senha_hash = auth.hash_password(u["senha"])
+        user.nome = u["nome"]
+        user.role = u["role"]
+        print(f"  Atualizado: {u['username']}")
+    else:
         novo = models.Usuario(
             username=u["username"],
             nome=u["nome"],
@@ -38,10 +45,4 @@ for u in USUARIOS_INICIAIS:
             role=u["role"],
         )
         db.add(novo)
-        print(f"  Criado: {u['username']} ({u['role']})")
-    else:
-        print(f"  Já existe: {u['username']}")
-
-db.commit()
-db.close()
-print("\nSeed concluído.")
+        print(f"  Criado: {u['username']}")
