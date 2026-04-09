@@ -15,7 +15,7 @@ app = FastAPI(title="Sistema de Manutenção de TI", version="1.0.0")
 # Lista explícita de origens permitidas
 # allow_origins=["*"] NÃO funciona com allow_credentials=True — precisa listar
 ALLOWED_ORIGINS = [
-    "https://manutencao-frontend-nu.vercel.app",   # URL do Vercel (produção)
+    "https://manutencao-frontend-5rho02ke7-manutencao-ti.vercel.app",   # URL do Vercel (produção)
     "http://localhost:3000",                        # testes locais
     "http://localhost:5500",                        # Live Server VS Code
     "http://127.0.0.1:5500",
