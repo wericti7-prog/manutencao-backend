@@ -32,7 +32,6 @@ for u in USUARIOS_INICIAIS:
     user = db.query(models.Usuario).filter(models.Usuario.username == u["username"]).first()
 
     if user:
-        # 🔥 ATUALIZA SENHA
         user.senha_hash = auth.hash_password(u["senha"])
         user.nome = u["nome"]
         user.role = u["role"]
@@ -46,3 +45,7 @@ for u in USUARIOS_INICIAIS:
         )
         db.add(novo)
         print(f"  Criado: {u['username']}")
+
+db.commit()
+db.close()
+print("\nSeed concluído.")
