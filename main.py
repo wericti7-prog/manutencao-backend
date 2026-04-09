@@ -12,11 +12,18 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Sistema de Manutenção de TI", version="1.0.0")
 
 # Permite o frontend (qualquer origem em dev; em produção, coloque a URL real)
+# Lista explícita de origens permitidas
+# allow_origins=["*"] NÃO funciona com allow_credentials=True — precisa listar
+ALLOWED_ORIGINS = [
+    "https://manutencao-frontend-nu.vercel.app",   # URL do Vercel (produção)
+    "http://localhost:3000",                        # testes locais
+    "http://localhost:5500",                        # Live Server VS Code
+    "http://127.0.0.1:5500",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://manutencao-frontend-nu.vercel.app/",
-                   "http://localhost:3000",
-                   ],              # Troque por sua URL do frontend em produção
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
