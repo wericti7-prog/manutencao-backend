@@ -33,6 +33,11 @@ async def preflight(rest_of_path: str, request: Request):
         "Access-Control-Allow-Headers":     "Authorization,Content-Type",
     })
 
+# ─── Keep-Alive / Health check ───────────────────────────────────────────────
+@app.get("/ping")
+def ping():
+    return {"status": "ok"}
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 # ─── Dependência: usuário logado ───────────────────────────────────────────────
