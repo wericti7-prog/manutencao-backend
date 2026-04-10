@@ -1,7 +1,11 @@
-from dotenv import load_dotenv
 import os
 
-load_dotenv()
+# Carrega .env apenas se disponível (desenvolvimento local)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 print("DATABASE_URL:", DATABASE_URL)

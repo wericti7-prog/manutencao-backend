@@ -20,9 +20,10 @@ app = FastAPI(title="Sistema de Manutenção de TI", version="1.0.0")
 # Se o login continuar bloqueado, abra o DevTools (F12) → Console e veja
 # qual URL está sendo bloqueada, depois adicione ela aqui.
 ALLOWED_ORIGINS = [
-    "https://manutencao-frontend-nu.vercel.app",    # ← sua URL principal
+    "https://manutencao-frontend-5rho02ke7-manutencao-ti.vercel.app",  # ← URL atual do Vercel
+    "https://manutencao-frontend-nu.vercel.app",
     "https://manutencao-frontend.vercel.app",
-    "https://manutencao-frontend-8jlws4i46-manutencao-ti.vercel.app",  # URL temporária (opcional)
+    "https://manutencao-frontend-8jlws4i46-manutencao-ti.vercel.app",
     "http://localhost:3000",
     "http://localhost:5500",
     "http://127.0.0.1:5500",

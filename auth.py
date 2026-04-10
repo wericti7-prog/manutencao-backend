@@ -3,9 +3,15 @@ from jose import JWTError, jwt
 from datetime import datetime, timedelta
 import os
 
-SECRET_KEY  = os.environ.get("SECRET_KEY", "troque-esta-chave-em-producao-use-openssl-rand")
+import sys
+
+_SECRET_DEFAULT = "troque-esta-chave-em-producao-use-openssl-rand"
+SECRET_KEY  = os.environ.get("SECRET_KEY", _SECRET_DEFAULT)
 ALGORITHM   = "HS256"
-TOKEN_HOURS = int(os.environ.get("TOKEN_HOURS", "8"))   # sessão de 8 horas
+TOKEN_HOURS = int(os.environ.get("TOKEN_HOURS", "8"))
+
+if SECRET_KEY == _SECRET_DEFAULT:
+    print("⚠️  AVISO: SECRET_KEY não configurada. Defina a variável de ambiente no Railway!", file=sys.stderr)
 
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
