@@ -3,17 +3,27 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
 
-# Em produção esta variável vem do Railway/Render (nunca coloque a senha no código)
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql://postgres.ezhzkxitwocrouohtsax:Reis2411789567@aws-1-sa-east-1.pooler.supabase.com:5432/postgres"
-)
+# A URL vem SEMPRE da variável de ambiente configurada no Railway
+# Nunca coloque a senha diretamente no código
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
-# Correção necessária para o Supabase/Railway (usam postgres:// mas SQLAlchemy precisa postgresql://)
+if not DATABASE_URL:
+    raise RuntimeError(
+        "Variável DATABASE_URL não configurada. "
+        "Configure-a nas variáveis de ambiente do Railway."
+    )
+
+# Supabase pooler usa "postgres://" — SQLAlchemy precisa de "postgresql://"
 if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    DATABASE_URL = "postgresql://" + DATABASE_URL[len("postgres://"):]
 
-engine = create_engine(DATABASE_URL)
+print("Conectando em:", DATABASE_URL.split("@")[-1])  # mostra host sem expor a senha
+
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    connect_args={"sslmode": "require"},
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

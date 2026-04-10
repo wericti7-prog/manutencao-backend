@@ -11,13 +11,19 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Sistema de Manutenção de TI", version="1.0.0")
 
-# Permite o frontend (qualquer origem em dev; em produção, coloque a URL real)
-# Lista explícita de origens permitidas
-# allow_origins=["*"] NÃO funciona com allow_credentials=True — precisa listar
+# ─── CORS ─────────────────────────────────────────────────────────────────────
+# IMPORTANTE: allow_origins=["*"] NÃO funciona com allow_credentials=True.
+# Liste aqui TODAS as URLs do seu frontend (produção e testes locais).
+# A URL de produção da Vercel é a mais curta — sem hashes no meio.
+# Exemplo: https://manutencao-frontend-nu.vercel.app
+#
+# Se o login continuar bloqueado, abra o DevTools (F12) → Console e veja
+# qual URL está sendo bloqueada, depois adicione ela aqui.
 ALLOWED_ORIGINS = [
-    "https://manutencao-frontend-8jlws4i46-manutencao-ti.vercel.app",   # URL do Vercel (produção)
-    "http://localhost:3000",                        # testes locais
-    "http://localhost:5500",                        # Live Server VS Code
+    "https://manutencao-frontend-nu.vercel.app",        # URL permanente Vercel
+    "https://manutencao-frontend.vercel.app",            # alternativa comum
+    "http://localhost:3000",
+    "http://localhost:5500",
     "http://127.0.0.1:5500",
 ]
 
@@ -123,12 +129,10 @@ def finalizar(id: int, data: schemas.FinalizarRequest, db: Session = Depends(get
         raise HTTPException(status_code=404, detail="Não encontrado")
     return m
 
-# ─── Log de edições de uma manutenção ─────────────────────────────────────────
 @app.get("/manutencoes/{id}/historico", response_model=list[schemas.EditLogOut])
 def historico(id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
     return crud.get_historico(db, id)
 
-# ─── Equipamentos usados (autocomplete) ───────────────────────────────────────
 @app.get("/equipamentos/sugestoes")
 def sugestoes(db: Session = Depends(get_db), _=Depends(get_current_user)):
     return crud.get_equipamentos_usados(db)
