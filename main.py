@@ -1,5 +1,5 @@
-from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, Depends, HTTPException, status, Request
+from fastapi.responses import Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
@@ -11,31 +11,27 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Sistema de Manutenção de TI", version="1.0.0")
 
-# ─── CORS ─────────────────────────────────────────────────────────────────────
-# IMPORTANTE: allow_origins=["*"] NÃO funciona com allow_credentials=True.
-# Liste aqui TODAS as URLs do seu frontend (produção e testes locais).
-# A URL de produção da Vercel é a mais curta — sem hashes no meio.
-# Exemplo: https://manutencao-frontend-nu.vercel.app
-#
-# Se o login continuar bloqueado, abra o DevTools (F12) → Console e veja
-# qual URL está sendo bloqueada, depois adicione ela aqui.
-ALLOWED_ORIGINS = [
-    "https://manutencao-frontend-nu.vercel.app",  # ← URL atual do Vercel
-    "https://manutencao-frontend.vercel.app",
-    "https://manutencao-frontend-8jlws4i46-manutencao-ti.vercel.app",
-    "http://localhost:3000",
-    "http://localhost:5500",
-    "http://127.0.0.1:5500",
-    "https://manutencao-frontend-5rho02ke7-manutencao-ti.vercel.app"
-]
+# ─── CORS — aceita qualquer origem ────────────────────────────────────────────
+@app.middleware("http")
+async def cors_middleware(request: Request, call_next):
+    origin = request.headers.get("origin", "")
+    response = await call_next(request)
+    if origin:
+        response.headers["Access-Control-Allow-Origin"]      = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"]     = "GET,POST,PUT,DELETE,OPTIONS,PATCH"
+        response.headers["Access-Control-Allow-Headers"]     = "Authorization,Content-Type"
+    return response
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+@app.options("/{rest_of_path:path}")
+async def preflight(rest_of_path: str, request: Request):
+    origin = request.headers.get("origin", "")
+    return Response(headers={
+        "Access-Control-Allow-Origin":      origin or "*",
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Allow-Methods":     "GET,POST,PUT,DELETE,OPTIONS,PATCH",
+        "Access-Control-Allow-Headers":     "Authorization,Content-Type",
+    })
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
