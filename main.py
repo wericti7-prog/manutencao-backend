@@ -139,3 +139,34 @@ def historico(id: int, db: Session = Depends(get_db), _=Depends(get_current_user
 @app.get("/equipamentos/sugestoes")
 def sugestoes(db: Session = Depends(get_db), _=Depends(get_current_user)):
     return crud.get_equipamentos_usados(db)
+
+# ─── Seed inicial — USE UMA VEZ e remova depois ───────────────────────────────
+@app.post("/admin/seed-usuarios")
+def seed_usuarios(db: Session = Depends(get_db)):
+    usuarios = [
+        {"username": "weric",    "nome": "Weric",    "senha": "weric123",    "role": "tecnico"},
+        {"username": "jhean",    "nome": "Jhean",    "senha": "jhean123",    "role": "tecnico"},
+        {"username": "paulo",    "nome": "Paulo",    "senha": "paulo123",    "role": "tecnico"},
+        {"username": "lucas",    "nome": "Lucas",    "senha": "lucas123",    "role": "tecnico"},
+        {"username": "volney",   "nome": "Volney",   "senha": "volney123",   "role": "tecnico"},
+        {"username": "wendel",   "nome": "Wendel",   "senha": "wendel123",   "role": "tecnico"},
+        {"username": "gerencia", "nome": "Gerência", "senha": "gerencia123", "role": "gerencia"},
+    ]
+    criados, atualizados = [], []
+    for u in usuarios:
+        user = db.query(models.Usuario).filter(models.Usuario.username == u["username"]).first()
+        if user:
+            user.senha_hash = auth.hash_password(u["senha"])
+            user.nome = u["nome"]
+            user.role = u["role"]
+            atualizados.append(u["username"])
+        else:
+            db.add(models.Usuario(
+                username=u["username"],
+                nome=u["nome"],
+                senha_hash=auth.hash_password(u["senha"]),
+                role=u["role"],
+            ))
+            criados.append(u["username"])
+    db.commit()
+    return {"criados": criados, "atualizados": atualizados}
