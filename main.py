@@ -1,57 +1,40 @@
 from fastapi import FastAPI, Depends, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import Optional
-import re
-import models, schemas, crud, auth
+import re, models, schemas, crud, auth
 from database import engine, get_db
 
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Sistema de Manutenção de TI", version="1.0.0")
 
-# ─── CORS ─────────────────────────────────────────────────────────────────────
-# Aceita qualquer subdomínio da Vercel + localhost para desenvolvimento
-def is_origin_allowed(origin: str) -> bool:
-    if not origin:
-        return False
-    allowed_patterns = [
-        r"^https://.*\.vercel\.app$",       # qualquer deploy da Vercel
-        r"^http://localhost:\d+$",           # localhost qualquer porta
-        r"^http://127\.0\.0\.1:\d+$",        # 127.0.0.1 qualquer porta
-    ]
-    return any(re.match(p, origin) for p in allowed_patterns)
+# ─── CORS — aceita qualquer origem ────────────────────────────────────────────
+def _cors_headers(origin: str) -> dict:
+    return {
+        "Access-Control-Allow-Origin":      origin,
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Allow-Methods":     "GET,POST,PUT,DELETE,OPTIONS,PATCH",
+        "Access-Control-Allow-Headers":     "Authorization,Content-Type,Accept",
+        "Access-Control-Max-Age":           "3600",
+    }
 
 @app.middleware("http")
 async def cors_middleware(request: Request, call_next):
     origin = request.headers.get("origin", "")
-
-    # Preflight OPTIONS — responde imediatamente sem processar a rota
     if request.method == "OPTIONS":
-        if is_origin_allowed(origin):
-            return JSONResponse(
-                content={},
-                headers={
-                    "Access-Control-Allow-Origin":      origin,
-                    "Access-Control-Allow-Credentials": "true",
-                    "Access-Control-Allow-Methods":     "GET, POST, PUT, DELETE, OPTIONS, PATCH",
-                    "Access-Control-Allow-Headers":     "Authorization, Content-Type, Accept",
-                    "Access-Control-Max-Age":           "3600",
-                },
-            )
-        return JSONResponse(content={"detail": "Origin not allowed"}, status_code=403)
-
+        return Response(status_code=200, headers=_cors_headers(origin) if origin else {})
     response = await call_next(request)
-
-    if is_origin_allowed(origin):
-        response.headers["Access-Control-Allow-Origin"]      = origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"]     = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-        response.headers["Access-Control-Allow-Headers"]     = "Authorization, Content-Type, Accept"
-
+    if origin:
+        for k, v in _cors_headers(origin).items():
+            response.headers[k] = v
     return response
+
+# ─── Keep-Alive / Health check ───────────────────────────────────────────────
+@app.get("/ping")
+def ping():
+    return {"status": "ok"}
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
