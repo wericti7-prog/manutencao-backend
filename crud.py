@@ -5,8 +5,15 @@ import models, schemas, auth
 
 # ─── Contador de atendimentos ──────────────────────────────────────────────────
 def _next_numero(db: Session) -> str:
-    total = db.query(models.Manutencao).count()
-    return str(total + 1).zfill(3)
+    from sqlalchemy import func
+    ultimo = db.query(func.max(models.Manutencao.numero)).scalar()
+    if not ultimo:
+        return "001"
+    try:
+        return str(int(ultimo) + 1).zfill(3)
+    except ValueError:
+        total = db.query(models.Manutencao).count()
+        return str(total + 1).zfill(3)
 
 # ─── Snapshot para o log ───────────────────────────────────────────────────────
 def _snapshot(m: models.Manutencao) -> dict:
