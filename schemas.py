@@ -15,7 +15,7 @@ class UserCreate(BaseModel):
     username:  str = Field(..., min_length=3, max_length=50)
     nome:      str = Field(..., min_length=2, max_length=100)
     senha:     str = Field(..., min_length=6)
-    role:      str = Field("tecnico", pattern="^(tecnico|gerencia|admin)$")
+    role:      str = Field("tecnico", pattern="^(tecnico|manutencao|observador|gerencia|admin)$")
 
 class UserOut(BaseModel):
     id:        int
