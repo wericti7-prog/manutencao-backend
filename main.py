@@ -137,3 +137,21 @@ def historico(id: int, db: Session = Depends(get_db), _=Depends(get_current_user
 @app.get("/equipamentos/sugestoes")
 def sugestoes(db: Session = Depends(get_db), _=Depends(get_current_user)):
     return crud.get_equipamentos_usados(db)
+
+# ─── Anexos ────────────────────────────────────────────────────────────────────
+@app.get("/manutencoes/{id}/anexos", response_model=list[schemas.AnexoOut])
+def listar_anexos(id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
+    return crud.get_anexos(db, id)
+
+@app.post("/manutencoes/{id}/anexos", response_model=schemas.AnexoOut, status_code=201)
+def adicionar_anexo(id: int, data: schemas.AnexoCreate,
+                    db: Session = Depends(get_db), _=Depends(get_current_user)):
+    if not crud.get_manutencao(db, id):
+        raise HTTPException(status_code=404, detail="Manutenção não encontrada")
+    return crud.create_anexo(db, id, data)
+
+@app.delete("/manutencoes/{id}/anexos/{anexo_id}", status_code=204)
+def remover_anexo(id: int, anexo_id: int,
+                  db: Session = Depends(get_db), _=Depends(get_current_user)):
+    if not crud.delete_anexo(db, id, anexo_id):
+        raise HTTPException(status_code=404, detail="Anexo não encontrado")

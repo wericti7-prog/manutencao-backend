@@ -36,6 +36,8 @@ class Manutencao(Base):
 
     historico = relationship("EditLog", back_populates="manutencao",
                              cascade="all, delete-orphan", order_by="EditLog.id")
+    anexos    = relationship("Anexo", back_populates="manutencao",
+                             cascade="all, delete-orphan", order_by="Anexo.id")
 
 class EditLog(Base):
     __tablename__ = "edit_logs"
@@ -48,3 +50,17 @@ class EditLog(Base):
     snapshot       = Column(JSON)                         # estado ANTES da edição
 
     manutencao = relationship("Manutencao", back_populates="historico")
+
+class Anexo(Base):
+    __tablename__ = "anexos"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    manutencao_id = Column(Integer, ForeignKey("manutencoes.id", ondelete="CASCADE"), nullable=False)
+    nome          = Column(String(300), nullable=False)
+    tipo          = Column(String(100), nullable=False)
+    tamanho       = Column(Integer, nullable=False)
+    data          = Column(String(20), nullable=False)
+    base64        = Column(Text, nullable=False)
+    criado_em     = Column(DateTime(timezone=True), server_default=func.now())
+
+    manutencao = relationship("Manutencao", back_populates="anexos")

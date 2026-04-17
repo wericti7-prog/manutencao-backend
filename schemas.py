@@ -81,6 +81,25 @@ class ManutencaoOut(BaseModel):
     class Config:
         from_attributes = True
 
+# ─── Anexos ────────────────────────────────────────────────────────────────────
+class AnexoCreate(BaseModel):
+    nome:    str
+    tipo:    str
+    tamanho: int
+    data:    str
+    base64:  str
+
+class AnexoOut(BaseModel):
+    id:      int
+    nome:    str
+    tipo:    str
+    tamanho: int
+    data:    str
+    base64:  str
+
+    class Config:
+        from_attributes = True
+
 # ─── Log de edições ────────────────────────────────────────────────────────────
 class EditLogOut(BaseModel):
     id:           int

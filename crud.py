@@ -163,3 +163,27 @@ def get_historico(db: Session, manutencao_id: int):
 def get_equipamentos_usados(db: Session):
     rows = db.query(models.Manutencao.equipamento).distinct().all()
     return sorted({r[0] for r in rows if r[0]})
+
+# ─── Anexos ────────────────────────────────────────────────────────────────────
+def get_anexos(db: Session, manutencao_id: int):
+    return db.query(models.Anexo).filter(
+        models.Anexo.manutencao_id == manutencao_id
+    ).order_by(models.Anexo.id).all()
+
+def create_anexo(db: Session, manutencao_id: int, data: schemas.AnexoCreate):
+    anexo = models.Anexo(manutencao_id=manutencao_id, **data.model_dump())
+    db.add(anexo)
+    db.commit()
+    db.refresh(anexo)
+    return anexo
+
+def delete_anexo(db: Session, manutencao_id: int, anexo_id: int) -> bool:
+    anexo = db.query(models.Anexo).filter(
+        models.Anexo.id == anexo_id,
+        models.Anexo.manutencao_id == manutencao_id
+    ).first()
+    if not anexo:
+        return False
+    db.delete(anexo)
+    db.commit()
+    return True
