@@ -1,0 +1,8 @@
+# Adicione esta classe no seu schemas.py
+# (junto com as outras classes de User)
+
+class UserUpdate(BaseModel):
+    nome:     Optional[str] = None
+    username: Optional[str] = None
+    senha:    Optional[str] = None
+    role:     Optional[str] = None
