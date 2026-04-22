@@ -27,6 +27,12 @@ class UserOut(BaseModel):
     class Config:
         from_attributes = True
 
+class UserUpdate(BaseModel):
+    nome:     Optional[str] = None
+    username: Optional[str] = None
+    senha:    Optional[str] = None
+    role:     Optional[str] = None
+
 # ─── Manutenção ────────────────────────────────────────────────────────────────
 class ManutencaoCreate(BaseModel):
     equipamento:  str = Field(..., min_length=1)

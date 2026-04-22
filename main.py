@@ -81,6 +81,13 @@ def criar_usuario(data: schemas.UserCreate, db: Session = Depends(get_db), _=Dep
         raise HTTPException(status_code=400, detail="Usuário já existe")
     return crud.create_user(db, data)
 
+@app.put("/usuarios/{user_id}", response_model=schemas.UserOut)
+def editar_usuario(user_id: int, data: schemas.UserUpdate, db: Session = Depends(get_db), _=Depends(require_gerencia)):
+    user = crud.update_user(db, user_id, data)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    return user
+
 @app.delete("/usuarios/{user_id}", status_code=204)
 def remover_usuario(user_id: int, db: Session = Depends(get_db), _=Depends(require_gerencia)):
     if not crud.delete_user(db, user_id):

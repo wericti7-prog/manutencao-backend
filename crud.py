@@ -65,6 +65,18 @@ def delete_user(db: Session, user_id: int) -> bool:
     db.commit()
     return True
 
+def update_user(db: Session, user_id: int, data):
+    user = db.query(models.Usuario).filter(models.Usuario.id == user_id).first()
+    if not user:
+        return None
+    if data.nome     is not None: user.nome     = data.nome.strip()
+    if data.username is not None: user.username = data.username.lower().strip()
+    if data.role     is not None: user.role     = data.role
+    if data.senha    is not None: user.senha_hash = auth.hash_password(data.senha)
+    db.commit()
+    db.refresh(user)
+    return user
+
 # ─── Manutenções ───────────────────────────────────────────────────────────────
 def get_manutencoes(db: Session, status=None, localizacao=None, busca=None):
     q = db.query(models.Manutencao)
