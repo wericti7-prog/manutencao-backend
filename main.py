@@ -182,19 +182,12 @@ def criar_resposta(id: int, data: schemas.RespostaCreate,
                    current_user=Depends(get_current_user)):
     if not crud.get_manutencao(db, id):
         raise HTTPException(status_code=404, detail="Manutenção não encontrada")
-    # Observador só pode responder se manutencao já enviou anexo
-    if current_user.role == "observador":
-        if not crud.manutencao_tem_anexo_manutencao(db, id):
-            raise HTTPException(
-                status_code=403,
-                detail="O Observador só pode responder após a equipe de Manutenção enviar um anexo."
-            )
-        # Observador precisa enviar pelo menos um anexo junto
-        if not data.anexos:
-            raise HTTPException(
-                status_code=400,
-                detail="O Observador deve incluir pelo menos um anexo em sua resposta."
-            )
+    # Observador precisa enviar pelo menos um anexo junto
+    if current_user.role == "observador" and not data.anexos:
+        raise HTTPException(
+            status_code=400,
+            detail="O Observador deve incluir pelo menos um anexo em sua resposta."
+        )
     return crud.create_resposta(db, id, data, autor=current_user.nome, role=current_user.role)
 
 # ─── Anexos ────────────────────────────────────────────────────────────────────
