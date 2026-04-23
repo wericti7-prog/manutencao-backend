@@ -79,7 +79,7 @@ def update_user(db: Session, user_id: int, data):
 
 # ─── Manutenções ───────────────────────────────────────────────────────────────
 def get_manutencoes(db: Session, status=None, localizacao=None, busca=None):
-    q = db.query(models.Manutencao)
+    q = db.query(models.Manutencao).filter(models.Manutencao.deletado_em == None)
     if status:
         if status == "abertas":
             q = q.filter(~models.Manutencao.status.in_(["Concluída", "Cancelada"]))
@@ -159,13 +159,61 @@ def finalizar_manutencao(db: Session, id: int, data: schemas.FinalizarRequest, f
     db.refresh(m)
     return m
 
-def delete_manutencao(db: Session, id: int) -> bool:
+def delete_manutencao(db: Session, id: int, deletado_por: str) -> bool:
     m = get_manutencao(db, id)
-    if not m:
+    if not m or m.deletado_em is not None:
         return False
-    db.delete(m)
+    log = models.EditLog(
+        manutencao_id=m.id,
+        editado_por=deletado_por,
+        motivo="Chamado excluído (movido para lixeira)",
+        snapshot=_snapshot(m),
+    )
+    db.add(log)
+    m.deletado_em  = datetime.utcnow()
+    m.deletado_por = deletado_por
     db.commit()
     return True
+
+def get_lixeira(db: Session):
+    return db.query(models.Manutencao).filter(
+        models.Manutencao.deletado_em != None
+    ).order_by(models.Manutencao.deletado_em.desc()).all()
+
+def restaurar_manutencao(db: Session, id: int, restaurado_por: str):
+    m = db.query(models.Manutencao).filter(models.Manutencao.id == id).first()
+    if not m or m.deletado_em is None:
+        return None
+    log = models.EditLog(
+        manutencao_id=m.id,
+        editado_por=restaurado_por,
+        motivo="Chamado restaurado da lixeira",
+        snapshot=_snapshot(m),
+    )
+    db.add(log)
+    m.deletado_em  = None
+    m.deletado_por = None
+    db.commit()
+    db.refresh(m)
+    return m
+
+def reabrir_manutencao(db: Session, id: int, status: str, reaberto_por: str):
+    m = get_manutencao(db, id)
+    if not m:
+        return None
+    log = models.EditLog(
+        manutencao_id=m.id,
+        editado_por=reaberto_por,
+        motivo=f"Chamado reaberto pela gerência",
+        snapshot=_snapshot(m),
+    )
+    db.add(log)
+    m.status           = status
+    m.data_fim         = None
+    m.resultado_reparo = None
+    db.commit()
+    db.refresh(m)
+    return m
 
 def get_historico(db: Session, manutencao_id: int):
     return db.query(models.EditLog).filter(

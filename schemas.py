@@ -83,9 +83,14 @@ class ManutencaoOut(BaseModel):
     criado_por:         Optional[str]
     criado_em:          Optional[datetime]
     atualizado_em:      Optional[datetime]
+    deletado_em:        Optional[datetime]
+    deletado_por:       Optional[str]
 
     class Config:
         from_attributes = True
+
+class ReopenRequest(BaseModel):
+    status: str = Field("Em Manutenção")
 
 # ─── Anexos ────────────────────────────────────────────────────────────────────
 class AnexoCreate(BaseModel):

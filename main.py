@@ -125,9 +125,28 @@ def editar(id: int, data: schemas.ManutencaoUpdate, db: Session = Depends(get_db
     return m
 
 @app.delete("/manutencoes/{id}", status_code=204)
-def excluir(id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    if not crud.delete_manutencao(db, id):
+def excluir(id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if not crud.delete_manutencao(db, id, deletado_por=current_user.nome):
         raise HTTPException(status_code=404, detail="Não encontrado")
+
+@app.post("/manutencoes/{id}/reabrir", response_model=schemas.ManutencaoOut)
+def reabrir(id: int, data: schemas.ReopenRequest, db: Session = Depends(get_db),
+            current_user=Depends(require_gerencia)):
+    m = crud.reabrir_manutencao(db, id, data.status, reaberto_por=current_user.nome)
+    if not m:
+        raise HTTPException(status_code=404, detail="Não encontrado")
+    return m
+
+@app.get("/lixeira", response_model=list[schemas.ManutencaoOut])
+def listar_lixeira(db: Session = Depends(get_db), _=Depends(require_gerencia)):
+    return crud.get_lixeira(db)
+
+@app.post("/lixeira/{id}/restaurar", response_model=schemas.ManutencaoOut)
+def restaurar(id: int, db: Session = Depends(get_db), current_user=Depends(require_gerencia)):
+    m = crud.restaurar_manutencao(db, id, restaurado_por=current_user.nome)
+    if not m:
+        raise HTTPException(status_code=404, detail="Não encontrado ou não está na lixeira")
+    return m
 
 @app.post("/manutencoes/{id}/finalizar", response_model=schemas.ManutencaoOut)
 def finalizar(id: int, data: schemas.FinalizarRequest, db: Session = Depends(get_db),

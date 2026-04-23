@@ -33,6 +33,8 @@ class Manutencao(Base):
     criado_por         = Column(String(100))
     criado_em          = Column(DateTime(timezone=True), server_default=func.now())
     atualizado_em      = Column(DateTime(timezone=True), onupdate=func.now())
+    deletado_em        = Column(DateTime(timezone=True), nullable=True)   # soft delete
+    deletado_por       = Column(String(100), nullable=True)
 
     historico = relationship("EditLog", back_populates="manutencao",
                              cascade="all, delete-orphan", order_by="EditLog.id")
