@@ -20,13 +20,15 @@ import models, auth
 models.Base.metadata.create_all(bind=engine)
 
 USUARIOS_INICIAIS = [
-    {"username": "weric",   "nome": "Weric",   "senha": "weric@123",   "role": "tecnico"},
-    {"username": "jhean",   "nome": "Jhean",   "senha": "jhean@123",   "role": "tecnico"},
-    {"username": "paulo",   "nome": "Paulo",   "senha": "paulo@123",   "role": "tecnico"},
-    {"username": "lucas",   "nome": "Lucas",   "senha": "lucas@123",   "role": "tecnico"},
-    {"username": "volney",  "nome": "Volney",  "senha": "volney@123",  "role": "tecnico"},
-    {"username": "wendel",  "nome": "Wendel",  "senha": "wendel@123",  "role": "tecnico"},
-    {"username": "gerencia", "nome": "Gerência", "senha": "gerencia@67", "role": "gerencia"},
+    {"username": "weric",       "nome": "Weric",       "senha": "weric@123",      "role": "tecnico"},
+    {"username": "jhean",       "nome": "Jhean",       "senha": "jhean@123",      "role": "tecnico"},
+    {"username": "paulo",       "nome": "Paulo",       "senha": "paulo@123",      "role": "tecnico"},
+    {"username": "lucas",       "nome": "Lucas",       "senha": "lucas@123",      "role": "tecnico"},
+    {"username": "volney",      "nome": "Volney",      "senha": "volney@123",     "role": "tecnico"},
+    {"username": "wendel",      "nome": "Wendel",      "senha": "wendel@123",     "role": "tecnico"},
+    {"username": "suprimentos", "nome": "Suprimentos", "senha": "suprimentos2411","role": "observador"},
+    {"username": "infotech",    "nome": "Infotech",    "senha": "infotech2026",   "role": "manutencao"},
+    {"username": "gerencia",    "nome": "Gerência",    "senha": "gerencia@67",    "role": "gerencia"},
 ]
 
 db = SessionLocal()
