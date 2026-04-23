@@ -164,6 +164,39 @@ def historico(id: int, db: Session = Depends(get_db), _=Depends(get_current_user
 def sugestoes(db: Session = Depends(get_db), _=Depends(get_current_user)):
     return crud.get_equipamentos_usados(db)
 
+# ─── Respostas ─────────────────────────────────────────────────────────────────
+@app.get("/manutencoes/{id}/respostas", response_model=list[schemas.RespostaOut])
+def listar_respostas(id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
+    if not crud.get_manutencao(db, id):
+        raise HTTPException(status_code=404, detail="Manutenção não encontrada")
+    return crud.get_respostas(db, id)
+
+@app.get("/manutencoes/{id}/respostas/pode-responder")
+def pode_responder(id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
+    """Retorna true se o perfil 'manutencao' já enviou ao menos um anexo neste chamado."""
+    return {"pode": crud.manutencao_tem_anexo_manutencao(db, id)}
+
+@app.post("/manutencoes/{id}/respostas", response_model=schemas.RespostaOut, status_code=201)
+def criar_resposta(id: int, data: schemas.RespostaCreate,
+                   db: Session = Depends(get_db),
+                   current_user=Depends(get_current_user)):
+    if not crud.get_manutencao(db, id):
+        raise HTTPException(status_code=404, detail="Manutenção não encontrada")
+    # Observador só pode responder se manutencao já enviou anexo
+    if current_user.role == "observador":
+        if not crud.manutencao_tem_anexo_manutencao(db, id):
+            raise HTTPException(
+                status_code=403,
+                detail="O Observador só pode responder após a equipe de Manutenção enviar um anexo."
+            )
+        # Observador precisa enviar pelo menos um anexo junto
+        if not data.anexos:
+            raise HTTPException(
+                status_code=400,
+                detail="O Observador deve incluir pelo menos um anexo em sua resposta."
+            )
+    return crud.create_resposta(db, id, data, autor=current_user.nome, role=current_user.role)
+
 # ─── Anexos ────────────────────────────────────────────────────────────────────
 @app.get("/manutencoes/{id}/anexos", response_model=list[schemas.AnexoOut])
 def listar_anexos(id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):

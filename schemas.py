@@ -111,6 +111,40 @@ class AnexoOut(BaseModel):
     class Config:
         from_attributes = True
 
+# ─── Respostas ─────────────────────────────────────────────────────────────────
+class AnexoRespostaCreate(BaseModel):
+    nome:    str
+    tipo:    str
+    tamanho: int
+    data:    str
+    base64:  str
+
+class AnexoRespostaOut(BaseModel):
+    id:      int
+    nome:    str
+    tipo:    str
+    tamanho: int
+    data:    str
+    base64:  str
+
+    class Config:
+        from_attributes = True
+
+class RespostaCreate(BaseModel):
+    texto:  Optional[str] = None
+    anexos: list[AnexoRespostaCreate] = []
+
+class RespostaOut(BaseModel):
+    id:         int
+    autor:      str
+    role:       str
+    texto:      Optional[str]
+    criado_em:  Optional[datetime]
+    anexos_resposta: list[AnexoRespostaOut] = []
+
+    class Config:
+        from_attributes = True
+
 # ─── Log de edições ────────────────────────────────────────────────────────────
 class EditLogOut(BaseModel):
     id:           int

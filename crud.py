@@ -224,6 +224,42 @@ def get_equipamentos_usados(db: Session):
     rows = db.query(models.Manutencao.equipamento).distinct().all()
     return sorted({r[0] for r in rows if r[0]})
 
+# ─── Respostas ─────────────────────────────────────────────────────────────────
+def get_respostas(db: Session, manutencao_id: int):
+    return db.query(models.Resposta).filter(
+        models.Resposta.manutencao_id == manutencao_id
+    ).order_by(models.Resposta.id).all()
+
+def manutencao_tem_anexo_manutencao(db: Session, manutencao_id: int) -> bool:
+    """Verifica se o perfil 'manutencao' já enviou pelo menos um anexo neste chamado."""
+    return db.query(models.Resposta).filter(
+        models.Resposta.manutencao_id == manutencao_id,
+        models.Resposta.role == "manutencao"
+    ).join(models.AnexoResposta, models.AnexoResposta.resposta_id == models.Resposta.id).first() is not None
+
+def create_resposta(db: Session, manutencao_id: int, data: schemas.RespostaCreate, autor: str, role: str):
+    resposta = models.Resposta(
+        manutencao_id=manutencao_id,
+        autor=autor,
+        role=role,
+        texto=data.texto,
+    )
+    db.add(resposta)
+    db.flush()  # gera ID sem commit
+    for arq in data.anexos:
+        anexo_r = models.AnexoResposta(
+            resposta_id=resposta.id,
+            nome=arq.nome,
+            tipo=arq.tipo,
+            tamanho=arq.tamanho,
+            data=arq.data,
+            base64=arq.base64,
+        )
+        db.add(anexo_r)
+    db.commit()
+    db.refresh(resposta)
+    return resposta
+
 # ─── Anexos ────────────────────────────────────────────────────────────────────
 def get_anexos(db: Session, manutencao_id: int):
     return db.query(models.Anexo).filter(

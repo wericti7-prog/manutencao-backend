@@ -40,6 +40,8 @@ class Manutencao(Base):
                              cascade="all, delete-orphan", order_by="EditLog.id")
     anexos    = relationship("Anexo", back_populates="manutencao",
                              cascade="all, delete-orphan", order_by="Anexo.id")
+    respostas = relationship("Resposta", back_populates="manutencao",
+                             cascade="all, delete-orphan", order_by="Resposta.id")
 
 class EditLog(Base):
     __tablename__ = "edit_logs"
@@ -66,3 +68,31 @@ class Anexo(Base):
     criado_em     = Column(DateTime(timezone=True), server_default=func.now())
 
     manutencao = relationship("Manutencao", back_populates="anexos")
+
+class Resposta(Base):
+    __tablename__ = "respostas"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    manutencao_id = Column(Integer, ForeignKey("manutencoes.id", ondelete="CASCADE"), nullable=False)
+    autor         = Column(String(100), nullable=False)   # nome do usuário
+    role          = Column(String(20), nullable=False)    # role do autor
+    texto         = Column(Text, nullable=True)
+    criado_em     = Column(DateTime(timezone=True), server_default=func.now())
+
+    manutencao = relationship("Manutencao", back_populates="respostas")
+    anexos_resposta = relationship("AnexoResposta", back_populates="resposta",
+                                   cascade="all, delete-orphan", order_by="AnexoResposta.id")
+
+class AnexoResposta(Base):
+    __tablename__ = "anexos_resposta"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    resposta_id = Column(Integer, ForeignKey("respostas.id", ondelete="CASCADE"), nullable=False)
+    nome        = Column(String(300), nullable=False)
+    tipo        = Column(String(100), nullable=False)
+    tamanho     = Column(Integer, nullable=False)
+    data        = Column(String(20), nullable=False)
+    base64      = Column(Text, nullable=False)
+    criado_em   = Column(DateTime(timezone=True), server_default=func.now())
+
+    resposta = relationship("Resposta", back_populates="anexos_resposta")
