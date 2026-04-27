@@ -155,3 +155,35 @@ class EditLogOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+# ─── Chat Global ───────────────────────────────────────────────────────────────
+class ChatAnexoCreate(BaseModel):
+    nome:    str
+    tipo:    str
+    tamanho: int
+    data:    str
+    base64:  str
+
+class ChatAnexoOut(BaseModel):
+    id:      int
+    nome:    str
+    tipo:    str
+    tamanho: int
+    data:    str
+    base64:  str
+    class Config:
+        from_attributes = True
+
+class ChatMensagemCreate(BaseModel):
+    texto:  Optional[str] = None
+    anexos: list[ChatAnexoCreate] = []
+
+class ChatMensagemOut(BaseModel):
+    id:        int
+    autor:     str
+    role:      str
+    texto:     Optional[str]
+    criado_em: Optional[datetime]
+    anexos:    list[ChatAnexoOut] = []
+    class Config:
+        from_attributes = True

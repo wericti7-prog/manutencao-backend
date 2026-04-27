@@ -3,12 +3,20 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from typing import Optional
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 import re, models, schemas, crud, auth
 from database import engine, get_db
 
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Sistema de Manutenção de TI", version="1.0.0")
+
+# ─── Rate Limiting ─────────────────────────────────────────────────────────────
+limiter = Limiter(key_func=get_remote_address, default_limits=[])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ─── CORS — aceita qualquer origem ────────────────────────────────────────────
 def _cors_headers(origin: str) -> dict:
@@ -53,7 +61,8 @@ def get_current_user(
 
 # ─── Auth ──────────────────────────────────────────────────────────────────────
 @app.post("/auth/login", response_model=schemas.Token)
-def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def login(request: Request, form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = crud.authenticate_user(db, form.username, form.password)
     if not user:
         raise HTTPException(status_code=401, detail="Usuário ou senha incorretos")
@@ -164,32 +173,6 @@ def historico(id: int, db: Session = Depends(get_db), _=Depends(get_current_user
 def sugestoes(db: Session = Depends(get_db), _=Depends(get_current_user)):
     return crud.get_equipamentos_usados(db)
 
-# ─── Respostas ─────────────────────────────────────────────────────────────────
-@app.get("/manutencoes/{id}/respostas", response_model=list[schemas.RespostaOut])
-def listar_respostas(id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    if not crud.get_manutencao(db, id):
-        raise HTTPException(status_code=404, detail="Manutenção não encontrada")
-    return crud.get_respostas(db, id)
-
-@app.get("/manutencoes/{id}/respostas/pode-responder")
-def pode_responder(id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    """Retorna true se o perfil 'manutencao' já enviou ao menos um anexo neste chamado."""
-    return {"pode": crud.manutencao_tem_anexo_manutencao(db, id)}
-
-@app.post("/manutencoes/{id}/respostas", response_model=schemas.RespostaOut, status_code=201)
-def criar_resposta(id: int, data: schemas.RespostaCreate,
-                   db: Session = Depends(get_db),
-                   current_user=Depends(get_current_user)):
-    if not crud.get_manutencao(db, id):
-        raise HTTPException(status_code=404, detail="Manutenção não encontrada")
-    # Observador precisa enviar pelo menos um anexo junto
-    if current_user.role == "observador" and not data.anexos:
-        raise HTTPException(
-            status_code=400,
-            detail="O Observador deve incluir pelo menos um anexo em sua resposta."
-        )
-    return crud.create_resposta(db, id, data, autor=current_user.nome, role=current_user.role)
-
 # ─── Anexos ────────────────────────────────────────────────────────────────────
 @app.get("/manutencoes/{id}/anexos", response_model=list[schemas.AnexoOut])
 def listar_anexos(id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
@@ -207,3 +190,22 @@ def remover_anexo(id: int, anexo_id: int,
                   db: Session = Depends(get_db), _=Depends(get_current_user)):
     if not crud.delete_anexo(db, id, anexo_id):
         raise HTTPException(status_code=404, detail="Anexo não encontrado")
+
+# ─── Chat Global (Suprimentos ↔ Manutenção) ────────────────────────────────────
+CHAT_ROLES = {"observador", "manutencao", "gerencia", "admin", "tecnico"}
+
+@app.get("/chat", response_model=list[schemas.ChatMensagemOut])
+def listar_chat(desde_id: int = 0, db: Session = Depends(get_db),
+                _=Depends(get_current_user)):
+    return crud.get_chat_mensagens(db, desde_id=desde_id)
+
+@app.post("/chat", response_model=schemas.ChatMensagemOut, status_code=201)
+def enviar_chat(data: schemas.ChatMensagemCreate,
+                db: Session = Depends(get_db),
+                current_user=Depends(get_current_user)):
+    if current_user.role not in {"observador", "manutencao"}:
+        raise HTTPException(status_code=403,
+            detail="Apenas Suprimentos (observador) e Manutenção podem enviar mensagens no chat.")
+    if not data.texto and not data.anexos:
+        raise HTTPException(status_code=400, detail="Envie um texto ou anexo.")
+    return crud.create_chat_mensagem(db, data, autor=current_user.nome, role=current_user.role)

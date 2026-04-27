@@ -283,3 +283,23 @@ def delete_anexo(db: Session, manutencao_id: int, anexo_id: int) -> bool:
     db.delete(anexo)
     db.commit()
     return True
+
+# ─── Chat Global ───────────────────────────────────────────────────────────────
+def get_chat_mensagens(db: Session, desde_id: int = 0):
+    return db.query(models.ChatMensagem).filter(
+        models.ChatMensagem.id > desde_id
+    ).order_by(models.ChatMensagem.id.asc()).all()
+
+def create_chat_mensagem(db: Session, data: schemas.ChatMensagemCreate, autor: str, role: str):
+    msg = models.ChatMensagem(autor=autor, role=role, texto=data.texto)
+    db.add(msg)
+    db.flush()
+    for arq in data.anexos:
+        db.add(models.ChatAnexo(
+            mensagem_id=msg.id,
+            nome=arq.nome, tipo=arq.tipo,
+            tamanho=arq.tamanho, data=arq.data, base64=arq.base64,
+        ))
+    db.commit()
+    db.refresh(msg)
+    return msg

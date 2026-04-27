@@ -96,3 +96,28 @@ class AnexoResposta(Base):
     criado_em   = Column(DateTime(timezone=True), server_default=func.now())
 
     resposta = relationship("Resposta", back_populates="anexos_resposta")
+
+class ChatMensagem(Base):
+    __tablename__ = "chat_mensagens"
+
+    id        = Column(Integer, primary_key=True, index=True)
+    autor     = Column(String(100), nullable=False)
+    role      = Column(String(20),  nullable=False)
+    texto     = Column(Text,        nullable=True)
+    criado_em = Column(DateTime(timezone=True), server_default=func.now())
+    anexos    = relationship("ChatAnexo", back_populates="mensagem",
+                             cascade="all, delete-orphan", order_by="ChatAnexo.id")
+
+class ChatAnexo(Base):
+    __tablename__ = "chat_anexos"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    mensagem_id = Column(Integer, ForeignKey("chat_mensagens.id", ondelete="CASCADE"), nullable=False)
+    nome        = Column(String(300), nullable=False)
+    tipo        = Column(String(100), nullable=False)
+    tamanho     = Column(Integer,     nullable=False)
+    data        = Column(String(20),  nullable=False)
+    base64      = Column(Text,        nullable=False)
+    criado_em   = Column(DateTime(timezone=True), server_default=func.now())
+
+    mensagem = relationship("ChatMensagem", back_populates="anexos")
