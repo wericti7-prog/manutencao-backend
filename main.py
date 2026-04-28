@@ -191,6 +191,25 @@ def remover_anexo(id: int, anexo_id: int,
     if not crud.delete_anexo(db, id, anexo_id):
         raise HTTPException(status_code=404, detail="Anexo não encontrado")
 
+# ─── Respostas ────────────────────────────────────────────────────────────────
+@app.get("/manutencoes/{id}/respostas", response_model=list[schemas.RespostaOut])
+def listar_respostas(id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
+    if not crud.get_manutencao(db, id):
+        raise HTTPException(status_code=404, detail="Manutenção não encontrada")
+    return crud.get_respostas(db, id)
+
+@app.post("/manutencoes/{id}/respostas", response_model=schemas.RespostaOut, status_code=201)
+def criar_resposta(id: int, data: schemas.RespostaCreate,
+                   db: Session = Depends(get_db),
+                   current_user=Depends(get_current_user)):
+    if current_user.role not in ("observador", "manutencao"):
+        raise HTTPException(status_code=403, detail="Apenas Suprimentos e Manutenção podem responder.")
+    if not crud.get_manutencao(db, id):
+        raise HTTPException(status_code=404, detail="Manutenção não encontrada")
+    if not data.texto and not data.anexos:
+        raise HTTPException(status_code=400, detail="Envie um texto ou anexo.")
+    return crud.create_resposta(db, id, data, autor=current_user.nome, role=current_user.role)
+
 # ─── Chat Global (Suprimentos ↔ Manutenção) ────────────────────────────────────
 CHAT_ROLES = {"observador", "manutencao", "gerencia", "admin", "tecnico"}
 
