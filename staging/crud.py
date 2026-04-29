@@ -79,7 +79,7 @@ def update_user(db: Session, user_id: int, data):
 
 # ─── Manutenções ───────────────────────────────────────────────────────────────
 def get_manutencoes(db: Session, status=None, localizacao=None, busca=None):
-    q = db.query(models.Manutencao)
+    q = db.query(models.Manutencao).filter(models.Manutencao.deletado_em == None)
     if status:
         if status == "abertas":
             q = q.filter(~models.Manutencao.status.in_(["Concluída", "Cancelada"]))
@@ -159,13 +159,61 @@ def finalizar_manutencao(db: Session, id: int, data: schemas.FinalizarRequest, f
     db.refresh(m)
     return m
 
-def delete_manutencao(db: Session, id: int) -> bool:
+def delete_manutencao(db: Session, id: int, deletado_por: str) -> bool:
     m = get_manutencao(db, id)
-    if not m:
+    if not m or m.deletado_em is not None:
         return False
-    db.delete(m)
+    log = models.EditLog(
+        manutencao_id=m.id,
+        editado_por=deletado_por,
+        motivo="Chamado excluído (movido para lixeira)",
+        snapshot=_snapshot(m),
+    )
+    db.add(log)
+    m.deletado_em  = datetime.utcnow()
+    m.deletado_por = deletado_por
     db.commit()
     return True
+
+def get_lixeira(db: Session):
+    return db.query(models.Manutencao).filter(
+        models.Manutencao.deletado_em != None
+    ).order_by(models.Manutencao.deletado_em.desc()).all()
+
+def restaurar_manutencao(db: Session, id: int, restaurado_por: str):
+    m = db.query(models.Manutencao).filter(models.Manutencao.id == id).first()
+    if not m or m.deletado_em is None:
+        return None
+    log = models.EditLog(
+        manutencao_id=m.id,
+        editado_por=restaurado_por,
+        motivo="Chamado restaurado da lixeira",
+        snapshot=_snapshot(m),
+    )
+    db.add(log)
+    m.deletado_em  = None
+    m.deletado_por = None
+    db.commit()
+    db.refresh(m)
+    return m
+
+def reabrir_manutencao(db: Session, id: int, status: str, reaberto_por: str):
+    m = get_manutencao(db, id)
+    if not m:
+        return None
+    log = models.EditLog(
+        manutencao_id=m.id,
+        editado_por=reaberto_por,
+        motivo=f"Chamado reaberto pela gerência",
+        snapshot=_snapshot(m),
+    )
+    db.add(log)
+    m.status           = status
+    m.data_fim         = None
+    m.resultado_reparo = None
+    db.commit()
+    db.refresh(m)
+    return m
 
 def get_historico(db: Session, manutencao_id: int):
     return db.query(models.EditLog).filter(
@@ -175,6 +223,42 @@ def get_historico(db: Session, manutencao_id: int):
 def get_equipamentos_usados(db: Session):
     rows = db.query(models.Manutencao.equipamento).distinct().all()
     return sorted({r[0] for r in rows if r[0]})
+
+# ─── Respostas ─────────────────────────────────────────────────────────────────
+def get_respostas(db: Session, manutencao_id: int):
+    return db.query(models.Resposta).filter(
+        models.Resposta.manutencao_id == manutencao_id
+    ).order_by(models.Resposta.id).all()
+
+def manutencao_tem_anexo_manutencao(db: Session, manutencao_id: int) -> bool:
+    """Verifica se o perfil 'manutencao' já enviou pelo menos um anexo neste chamado."""
+    return db.query(models.Resposta).filter(
+        models.Resposta.manutencao_id == manutencao_id,
+        models.Resposta.role == "manutencao"
+    ).join(models.AnexoResposta, models.AnexoResposta.resposta_id == models.Resposta.id).first() is not None
+
+def create_resposta(db: Session, manutencao_id: int, data: schemas.RespostaCreate, autor: str, role: str):
+    resposta = models.Resposta(
+        manutencao_id=manutencao_id,
+        autor=autor,
+        role=role,
+        texto=data.texto,
+    )
+    db.add(resposta)
+    db.flush()  # gera ID sem commit
+    for arq in data.anexos:
+        anexo_r = models.AnexoResposta(
+            resposta_id=resposta.id,
+            nome=arq.nome,
+            tipo=arq.tipo,
+            tamanho=arq.tamanho,
+            data=arq.data,
+            base64=arq.base64,
+        )
+        db.add(anexo_r)
+    db.commit()
+    db.refresh(resposta)
+    return resposta
 
 # ─── Anexos ────────────────────────────────────────────────────────────────────
 def get_anexos(db: Session, manutencao_id: int):
@@ -199,3 +283,23 @@ def delete_anexo(db: Session, manutencao_id: int, anexo_id: int) -> bool:
     db.delete(anexo)
     db.commit()
     return True
+
+# ─── Chat Global ───────────────────────────────────────────────────────────────
+def get_chat_mensagens(db: Session, desde_id: int = 0):
+    return db.query(models.ChatMensagem).filter(
+        models.ChatMensagem.id > desde_id
+    ).order_by(models.ChatMensagem.id.asc()).all()
+
+def create_chat_mensagem(db: Session, data: schemas.ChatMensagemCreate, autor: str, role: str):
+    msg = models.ChatMensagem(autor=autor, role=role, texto=data.texto)
+    db.add(msg)
+    db.flush()
+    for arq in data.anexos:
+        db.add(models.ChatAnexo(
+            mensagem_id=msg.id,
+            nome=arq.nome, tipo=arq.tipo,
+            tamanho=arq.tamanho, data=arq.data, base64=arq.base64,
+        ))
+    db.commit()
+    db.refresh(msg)
+    return msg

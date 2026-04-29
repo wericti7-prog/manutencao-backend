@@ -83,9 +83,14 @@ class ManutencaoOut(BaseModel):
     criado_por:         Optional[str]
     criado_em:          Optional[datetime]
     atualizado_em:      Optional[datetime]
+    deletado_em:        Optional[datetime]
+    deletado_por:       Optional[str]
 
     class Config:
         from_attributes = True
+
+class ReopenRequest(BaseModel):
+    status: str = Field("Em Manutenção")
 
 # ─── Anexos ────────────────────────────────────────────────────────────────────
 class AnexoCreate(BaseModel):
@@ -106,6 +111,40 @@ class AnexoOut(BaseModel):
     class Config:
         from_attributes = True
 
+# ─── Respostas ─────────────────────────────────────────────────────────────────
+class AnexoRespostaCreate(BaseModel):
+    nome:    str
+    tipo:    str
+    tamanho: int
+    data:    str
+    base64:  str
+
+class AnexoRespostaOut(BaseModel):
+    id:      int
+    nome:    str
+    tipo:    str
+    tamanho: int
+    data:    str
+    base64:  str
+
+    class Config:
+        from_attributes = True
+
+class RespostaCreate(BaseModel):
+    texto:  Optional[str] = None
+    anexos: list[AnexoRespostaCreate] = []
+
+class RespostaOut(BaseModel):
+    id:         int
+    autor:      str
+    role:       str
+    texto:      Optional[str]
+    criado_em:  Optional[datetime]
+    anexos_resposta: list[AnexoRespostaOut] = []
+
+    class Config:
+        from_attributes = True
+
 # ─── Log de edições ────────────────────────────────────────────────────────────
 class EditLogOut(BaseModel):
     id:           int
@@ -114,5 +153,37 @@ class EditLogOut(BaseModel):
     motivo:       Optional[str]
     snapshot:     Optional[Any]
 
+    class Config:
+        from_attributes = True
+
+# ─── Chat Global ───────────────────────────────────────────────────────────────
+class ChatAnexoCreate(BaseModel):
+    nome:    str
+    tipo:    str
+    tamanho: int
+    data:    str
+    base64:  str
+
+class ChatAnexoOut(BaseModel):
+    id:      int
+    nome:    str
+    tipo:    str
+    tamanho: int
+    data:    str
+    base64:  str
+    class Config:
+        from_attributes = True
+
+class ChatMensagemCreate(BaseModel):
+    texto:  Optional[str] = None
+    anexos: list[ChatAnexoCreate] = []
+
+class ChatMensagemOut(BaseModel):
+    id:        int
+    autor:     str
+    role:      str
+    texto:     Optional[str]
+    criado_em: Optional[datetime]
+    anexos:    list[ChatAnexoOut] = []
     class Config:
         from_attributes = True
