@@ -202,8 +202,7 @@ def listar_respostas(id: int, db: Session = Depends(get_db), _=Depends(get_curre
 def criar_resposta(id: int, data: schemas.RespostaCreate,
                    db: Session = Depends(get_db),
                    current_user=Depends(get_current_user)):
-    if current_user.role not in ("observador", "manutencao"):
-        raise HTTPException(status_code=403, detail="Apenas Suprimentos e Manutenção podem responder.")
+    # Todos os perfis podem enviar mensagens no chat do equipamento
     if not crud.get_manutencao(db, id):
         raise HTTPException(status_code=404, detail="Manutenção não encontrada")
     if not data.texto and not data.anexos:
