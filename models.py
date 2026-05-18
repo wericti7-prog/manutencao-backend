@@ -28,6 +28,7 @@ class Manutencao(Base):
     solucao            = Column(Text)
     custo              = Column(Float, default=0)
     pecas              = Column(String(300))
+    substituto         = Column(String(300), nullable=True)   # equipamento substituto enviado
     data_inicio        = Column(DateTime(timezone=True))
     data_fim           = Column(DateTime(timezone=True))
     criado_por         = Column(String(100))

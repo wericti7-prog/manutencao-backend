@@ -26,6 +26,7 @@ def _snapshot(m: models.Manutencao) -> dict:
         "solucao":      m.solucao,
         "custo":        m.custo,
         "pecas":        m.pecas,
+        "substituto":   m.substituto,
         "data_inicio":  m.data_inicio.isoformat() if m.data_inicio else None,
         "data_fim":     m.data_fim.isoformat()    if m.data_fim    else None,
     }
