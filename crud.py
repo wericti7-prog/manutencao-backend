@@ -285,6 +285,33 @@ def delete_anexo(db: Session, manutencao_id: int, anexo_id: int) -> bool:
     db.commit()
     return True
 
+
+# ─── Correção de status incorretos ────────────────────────────────────────────
+def corrigir_status_incorretos(db: Session, novo_status: str, corrigido_por: str):
+    """
+    Localiza manutenções salvas como Concluída sem resultado_reparo
+    (foram marcadas por engano) e corrige para um status ativo.
+    """
+    registros = db.query(models.Manutencao).filter(
+        models.Manutencao.status == "Concluída",
+        models.Manutencao.resultado_reparo == None,
+        models.Manutencao.deletado_em == None,
+    ).all()
+    corrigidos = []
+    for m in registros:
+        log = models.EditLog(
+            manutencao_id=m.id,
+            editado_por=corrigido_por,
+            motivo=f"Correção: status Concluída sem finalização real → {novo_status}",
+            snapshot=_snapshot(m),
+        )
+        db.add(log)
+        m.status   = novo_status
+        m.data_fim = None
+        corrigidos.append(m.id)
+    db.commit()
+    return corrigidos
+
 # ─── Chat Global ───────────────────────────────────────────────────────────────
 def get_chat_mensagens(db: Session, desde_id: int = 0):
     return db.query(models.ChatMensagem).filter(

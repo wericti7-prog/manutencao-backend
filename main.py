@@ -157,6 +157,16 @@ def restaurar(id: int, db: Session = Depends(get_db), current_user=Depends(requi
         raise HTTPException(status_code=404, detail="Não encontrado ou não está na lixeira")
     return m
 
+
+@app.post("/manutencoes/corrigir-status")
+def corrigir_status(
+    novo_status: str = "Aguardando aprovacao",
+    db: Session = Depends(get_db),
+    current_user=Depends(require_gerencia)
+):
+    ids = crud.corrigir_status_incorretos(db, novo_status, corrigido_por=current_user.nome)
+    return {"corrigidos": len(ids), "ids": ids}
+
 @app.post("/manutencoes/{id}/finalizar", response_model=schemas.ManutencaoOut)
 def finalizar(id: int, data: schemas.FinalizarRequest, db: Session = Depends(get_db),
               current_user=Depends(get_current_user)):
