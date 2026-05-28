@@ -157,16 +157,6 @@ def restaurar(id: int, db: Session = Depends(get_db), current_user=Depends(requi
         raise HTTPException(status_code=404, detail="Não encontrado ou não está na lixeira")
     return m
 
-
-@app.post("/manutencoes/corrigir-status")
-def corrigir_status(
-    novo_status: str = "Aguardando aprovacao",
-    db: Session = Depends(get_db),
-    current_user=Depends(require_gerencia)
-):
-    ids = crud.corrigir_status_incorretos(db, novo_status, corrigido_por=current_user.nome)
-    return {"corrigidos": len(ids), "ids": ids}
-
 @app.post("/manutencoes/{id}/finalizar", response_model=schemas.ManutencaoOut)
 def finalizar(id: int, data: schemas.FinalizarRequest, db: Session = Depends(get_db),
               current_user=Depends(get_current_user)):
@@ -231,9 +221,6 @@ def listar_chat(desde_id: int = 0, db: Session = Depends(get_db),
 def enviar_chat(data: schemas.ChatMensagemCreate,
                 db: Session = Depends(get_db),
                 current_user=Depends(get_current_user)):
-    if current_user.role not in {"observador", "manutencao"}:
-        raise HTTPException(status_code=403,
-            detail="Apenas Suprimentos (observador) e Manutenção podem enviar mensagens no chat.")
     if not data.texto and not data.anexos:
         raise HTTPException(status_code=400, detail="Envie um texto ou anexo.")
     return crud.create_chat_mensagem(db, data, autor=current_user.nome, role=current_user.role)
