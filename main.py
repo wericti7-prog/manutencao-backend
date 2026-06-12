@@ -13,6 +13,18 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Sistema de Manutenção de TI", version="1.0.0")
 
+# ─── Limite global de tamanho de requisição (110 MB com margem para base64) ───
+@app.middleware("http")
+async def limit_request_size(request: Request, call_next):
+    MAX_BODY = 110 * 1024 * 1024  # 110 MB (margem sobre os 100 MB do arquivo)
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > MAX_BODY:
+        return JSONResponse(
+            status_code=413,
+            content={"detail": f"Requisição muito grande. Limite: 100 MB por arquivo."}
+        )
+    return await call_next(request)
+
 # ─── Rate Limiting ─────────────────────────────────────────────────────────────
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter

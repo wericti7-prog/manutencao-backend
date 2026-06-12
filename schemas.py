@@ -1,6 +1,15 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import Optional, Any
 from datetime import datetime
+
+MAX_ANEXO_BYTES = 100 * 1024 * 1024  # 100 MB
+
+def _validar_base64(v: str) -> str:
+    tamanho_real = len(v) * 3 // 4
+    if tamanho_real > MAX_ANEXO_BYTES:
+        mb = tamanho_real // (1024 * 1024)
+        raise ValueError(f"Arquivo excede o limite de 100 MB ({mb} MB enviado)")
+    return v
 
 # ─── Auth ──────────────────────────────────────────────────────────────────────
 class Token(BaseModel):
@@ -102,6 +111,10 @@ class AnexoCreate(BaseModel):
     tamanho: int
     data:    str
     base64:  str
+    @validator("base64")
+    def validar_tamanho(cls, v):
+        return _validar_base64(v)
+
 
 class AnexoOut(BaseModel):
     id:      int
@@ -121,6 +134,10 @@ class AnexoRespostaCreate(BaseModel):
     tamanho: int
     data:    str
     base64:  str
+    @validator("base64")
+    def validar_tamanho(cls, v):
+        return _validar_base64(v)
+
 
 class AnexoRespostaOut(BaseModel):
     id:      int
@@ -166,6 +183,10 @@ class ChatAnexoCreate(BaseModel):
     tamanho: int
     data:    str
     base64:  str
+    @validator("base64")
+    def validar_tamanho(cls, v):
+        return _validar_base64(v)
+
 
 class ChatAnexoOut(BaseModel):
     id:      int
