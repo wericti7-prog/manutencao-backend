@@ -103,6 +103,10 @@ def criar_usuario(data: schemas.UserCreate, db: Session = Depends(get_db), _=Dep
         raise HTTPException(status_code=400, detail="Usuário já existe")
     return crud.create_user(db, data)
 
+@app.get("/usuarios/{user_id}/acessos", response_model=list[schemas.LogAcessoOut])
+def historico_acessos(user_id: int, db: Session = Depends(get_db), _=Depends(require_gerencia)):
+    return crud.get_log_acessos(db, user_id)
+
 @app.put("/usuarios/{user_id}", response_model=schemas.UserOut)
 def editar_usuario(user_id: int, data: schemas.UserUpdate, db: Session = Depends(get_db), _=Depends(require_gerencia)):
     user = crud.update_user(db, user_id, data)
@@ -114,10 +118,6 @@ def editar_usuario(user_id: int, data: schemas.UserUpdate, db: Session = Depends
 def remover_usuario(user_id: int, db: Session = Depends(get_db), _=Depends(require_gerencia)):
     if not crud.delete_user(db, user_id):
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
-
-@app.get("/usuarios/{user_id}/acessos", response_model=list[schemas.LogAcessoOut])
-def historico_acessos(user_id: int, db: Session = Depends(get_db), _=Depends(require_gerencia)):
-    return crud.get_log_acessos(db, user_id)
 
 # ─── Manutenções ───────────────────────────────────────────────────────────────
 @app.get("/manutencoes", response_model=list[schemas.ManutencaoOut])
