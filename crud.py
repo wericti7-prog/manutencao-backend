@@ -1,351 +1,243 @@
+from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse, Response
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
-from datetime import datetime
-import models, schemas, auth
+from typing import Optional
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+import re, models, schemas, crud, auth
+from database import engine, get_db
 
-# ─── Contador de atendimentos ──────────────────────────────────────────────────
-def _next_numero(db: Session) -> str:
-    from sqlalchemy import func
-    ultimo = db.query(func.max(models.Manutencao.numero)).scalar()
-    if not ultimo:
-        return "001"
-    try:
-        return str(int(ultimo) + 1).zfill(3)
-    except ValueError:
-        total = db.query(models.Manutencao).count()
-        return str(total + 1).zfill(3)
+models.Base.metadata.create_all(bind=engine)
 
-# ─── Snapshot para o log ───────────────────────────────────────────────────────
-def _snapshot(m: models.Manutencao) -> dict:
+app = FastAPI(title="Sistema de Manutenção de TI", version="1.0.0")
+
+# ─── Limite global de tamanho de requisição (110 MB com margem para base64) ───
+@app.middleware("http")
+async def limit_request_size(request: Request, call_next):
+    MAX_BODY = 110 * 1024 * 1024  # 110 MB (margem sobre os 100 MB do arquivo)
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > MAX_BODY:
+        return JSONResponse(
+            status_code=413,
+            content={"detail": f"Requisição muito grande. Limite: 100 MB por arquivo."}
+        )
+    return await call_next(request)
+
+# ─── Rate Limiting ─────────────────────────────────────────────────────────────
+limiter = Limiter(key_func=get_remote_address, default_limits=[])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# ─── CORS — aceita qualquer origem ────────────────────────────────────────────
+def _cors_headers(origin: str) -> dict:
     return {
-        "equipamento":  m.equipamento,
-        "localizacao":  m.localizacao,
-        "tecnico":      m.tecnico,
-        "status":       m.status,
-        "problema":     m.problema,
-        "solucao":      m.solucao,
-        "custo":        m.custo,
-        "pecas":        m.pecas,
-        "substituto":   m.substituto,
-        "data_inicio":  m.data_inicio.isoformat() if m.data_inicio else None,
-        "data_fim":     m.data_fim.isoformat()    if m.data_fim    else None,
+        "Access-Control-Allow-Origin":      origin,
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Allow-Methods":     "GET,POST,PUT,DELETE,OPTIONS,PATCH",
+        "Access-Control-Allow-Headers":     "Authorization,Content-Type,Accept",
+        "Access-Control-Max-Age":           "3600",
     }
 
+@app.middleware("http")
+async def cors_middleware(request: Request, call_next):
+    origin = request.headers.get("origin", "")
+    if request.method == "OPTIONS":
+        return Response(status_code=200, headers=_cors_headers(origin) if origin else {})
+    response = await call_next(request)
+    if origin:
+        for k, v in _cors_headers(origin).items():
+            response.headers[k] = v
+    return response
+
+# ─── Keep-Alive / Health check ───────────────────────────────────────────────
+@app.get("/ping")
+def ping():
+    return {"status": "ok"}
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+# ─── Dependência: usuário logado ───────────────────────────────────────────────
+def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+):
+    payload = auth.decode_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Token inválido ou expirado")
+    user = crud.get_user_by_username(db, payload["sub"])
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuário não encontrado")
+    return user
+
+# ─── Auth ──────────────────────────────────────────────────────────────────────
+@app.post("/auth/login", response_model=schemas.Token)
+@limiter.limit("5/minute")
+def login(request: Request, form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = crud.authenticate_user(db, form.username, form.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuário ou senha incorretos")
+    crud.registrar_acesso(db, user)
+    token = auth.create_token({"sub": user.username, "nome": user.nome, "role": user.role})
+    return {"access_token": token, "token_type": "bearer",
+            "nome": user.nome, "username": user.username, "role": user.role}
+
+@app.get("/auth/me", response_model=schemas.UserOut)
+def me(current_user=Depends(get_current_user)):
+    return current_user
+
 # ─── Usuários ──────────────────────────────────────────────────────────────────
-def get_user_by_username(db: Session, username: str):
-    return db.query(models.Usuario).filter(
-        models.Usuario.username == username.lower().strip()
-    ).first()
+def require_gerencia(current_user=Depends(get_current_user)):
+    if current_user.role not in ("gerencia", "admin"):
+        raise HTTPException(status_code=403, detail="Acesso restrito à gerência")
+    return current_user
 
-def get_all_users(db: Session):
-    return db.query(models.Usuario).order_by(models.Usuario.nome).all()
+@app.get("/usuarios", response_model=list[schemas.UserOut])
+def listar_usuarios(db: Session = Depends(get_db), _=Depends(require_gerencia)):
+    return crud.get_all_users(db)
 
-def authenticate_user(db: Session, username: str, password: str):
-    user = get_user_by_username(db, username)
-    if not user or not auth.verify_password(password, user.senha_hash):
-        return None
-    return user
+@app.post("/usuarios", response_model=schemas.UserOut, status_code=201)
+def criar_usuario(data: schemas.UserCreate, db: Session = Depends(get_db), _=Depends(require_gerencia)):
+    if crud.get_user_by_username(db, data.username):
+        raise HTTPException(status_code=400, detail="Usuário já existe")
+    return crud.create_user(db, data)
 
-def registrar_acesso(db: Session, user: models.Usuario):
-    agora = datetime.utcnow()
-    user.ultimo_acesso = agora
-    db.add(models.LogAcesso(usuario_id=user.id, acessado_em=agora))
-    # Mantém apenas os últimos 10 registros por usuário
-    logs = db.query(models.LogAcesso).filter(
-        models.LogAcesso.usuario_id == user.id
-    ).order_by(models.LogAcesso.id.desc()).all()
-    if len(logs) > 10:
-        for log_antigo in logs[10:]:
-            db.delete(log_antigo)
-    db.commit()
+@app.get("/usuarios/{user_id}/acessos", response_model=list[schemas.LogAcessoOut])
+def historico_acessos(user_id: int, db: Session = Depends(get_db), _=Depends(require_gerencia)):
+    return crud.get_log_acessos(db, user_id)
 
-def get_log_acessos(db: Session, usuario_id: int):
-    return db.query(models.LogAcesso).filter(
-        models.LogAcesso.usuario_id == usuario_id
-    ).order_by(models.LogAcesso.id.desc()).limit(10).all()
-
-def create_user(db: Session, data: schemas.UserCreate):
-    user = models.Usuario(
-        username=data.username.lower().strip(),
-        nome=data.nome.strip(),
-        senha_hash=auth.hash_password(data.senha),
-        role=data.role,
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
-
-def delete_user(db: Session, user_id: int) -> bool:
-    user = db.query(models.Usuario).filter(models.Usuario.id == user_id).first()
+@app.put("/usuarios/{user_id}", response_model=schemas.UserOut)
+def editar_usuario(user_id: int, data: schemas.UserUpdate, db: Session = Depends(get_db), _=Depends(require_gerencia)):
+    user = crud.update_user(db, user_id, data)
     if not user:
-        return False
-    db.delete(user)
-    db.commit()
-    return True
-
-def update_user(db: Session, user_id: int, data):
-    user = db.query(models.Usuario).filter(models.Usuario.id == user_id).first()
-    if not user:
-        return None
-    if data.nome     is not None: user.nome     = data.nome.strip()
-    if data.username is not None: user.username = data.username.lower().strip()
-    if data.role     is not None: user.role     = data.role
-    if data.senha    is not None: user.senha_hash = auth.hash_password(data.senha)
-    db.commit()
-    db.refresh(user)
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
     return user
+
+@app.delete("/usuarios/{user_id}", status_code=204)
+def remover_usuario(user_id: int, db: Session = Depends(get_db), _=Depends(require_gerencia)):
+    if not crud.delete_user(db, user_id):
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
 
 # ─── Manutenções ───────────────────────────────────────────────────────────────
-def get_manutencoes(db: Session, status=None, localizacao=None, busca=None):
-    q = db.query(models.Manutencao).filter(models.Manutencao.deletado_em == None)
-    if status:
-        if status == "abertas":
-            q = q.filter(~models.Manutencao.status.in_(["Concluída", "Cancelada"]))
-        elif status == "finalizadas":
-            q = q.filter(models.Manutencao.status.in_(["Concluída", "Cancelada"]))
-        else:
-            q = q.filter(models.Manutencao.status == status)
-    if localizacao:
-        q = q.filter(models.Manutencao.localizacao == localizacao)
-    if busca:
-        term = f"%{busca}%"
-        q = q.filter(or_(
-            models.Manutencao.equipamento.ilike(term),
-            models.Manutencao.tecnico.ilike(term),
-            models.Manutencao.problema.ilike(term),
-        ))
-    return q.order_by(models.Manutencao.id.desc()).all()
+@app.get("/manutencoes", response_model=list[schemas.ManutencaoOut])
+def listar(
+    status: Optional[str] = None,
+    localizacao: Optional[str] = None,
+    busca: Optional[str] = None,
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user)
+):
+    return crud.get_manutencoes(db, status=status, localizacao=localizacao, busca=busca)
 
-def get_manutencao(db: Session, id: int):
-    return db.query(models.Manutencao).filter(models.Manutencao.id == id).first()
+@app.post("/manutencoes", response_model=schemas.ManutencaoOut, status_code=201)
+def criar(data: schemas.ManutencaoCreate, db: Session = Depends(get_db),
+          current_user=Depends(get_current_user)):
+    return crud.create_manutencao(db, data, criado_por=current_user.nome)
 
-def create_manutencao(db: Session, data: schemas.ManutencaoCreate, criado_por: str):
-    m = models.Manutencao(
-        numero=_next_numero(db),
-        criado_por=criado_por,
-        data_inicio=data.data_inicio or datetime.utcnow(),
-        **{k: v for k, v in data.model_dump().items() if k != "data_inicio"},
-    )
-    db.add(m)
-    db.commit()
-    db.refresh(m)
-    return m
-
-def update_manutencao(db: Session, id: int, data: schemas.ManutencaoUpdate, editado_por: str):
-    m = get_manutencao(db, id)
+@app.get("/manutencoes/{id}", response_model=schemas.ManutencaoOut)
+def detalhe(id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
+    m = crud.get_manutencao(db, id)
     if not m:
-        return None
-
-    # Salva snapshot ANTES de alterar
-    log = models.EditLog(
-        manutencao_id=m.id,
-        editado_por=editado_por,
-        motivo="Edição manual",
-        snapshot=_snapshot(m),
-    )
-    db.add(log)
-
-    for field, value in data.model_dump(exclude_unset=True).items():
-        setattr(m, field, value)
-
-    db.commit()
-    db.refresh(m)
+        raise HTTPException(status_code=404, detail="Não encontrado")
     return m
 
-def finalizar_manutencao(db: Session, id: int, data: schemas.FinalizarRequest, finalizado_por: str):
-    m = get_manutencao(db, id)
+@app.put("/manutencoes/{id}", response_model=schemas.ManutencaoOut)
+def editar(id: int, data: schemas.ManutencaoUpdate, db: Session = Depends(get_db),
+           current_user=Depends(get_current_user)):
+    m = crud.update_manutencao(db, id, data, editado_por=current_user.nome)
     if not m:
-        return None
-
-    log = models.EditLog(
-        manutencao_id=m.id,
-        editado_por=finalizado_por,
-        motivo="Finalização do atendimento",
-        snapshot=_snapshot(m),
-    )
-    db.add(log)
-
-    m.status             = "Concluída"
-    m.resultado_reparo   = data.resultado_reparo
-    m.status_equipamento = data.status_equipamento or m.status
-    m.data_fim           = datetime.utcnow()
-    if data.solucao is not None: m.solucao = data.solucao
-    if data.custo   is not None: m.custo   = data.custo
-    if data.pecas   is not None: m.pecas   = data.pecas
-
-    db.commit()
-    db.refresh(m)
+        raise HTTPException(status_code=404, detail="Não encontrado")
     return m
 
-def delete_manutencao(db: Session, id: int, deletado_por: str) -> bool:
-    m = get_manutencao(db, id)
-    if not m or m.deletado_em is not None:
-        return False
-    log = models.EditLog(
-        manutencao_id=m.id,
-        editado_por=deletado_por,
-        motivo="Chamado excluído (movido para lixeira)",
-        snapshot=_snapshot(m),
-    )
-    db.add(log)
-    m.deletado_em  = datetime.utcnow()
-    m.deletado_por = deletado_por
-    db.commit()
-    return True
+@app.delete("/manutencoes/{id}", status_code=204)
+def excluir(id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if not crud.delete_manutencao(db, id, deletado_por=current_user.nome):
+        raise HTTPException(status_code=404, detail="Não encontrado")
 
-def get_lixeira(db: Session):
-    return db.query(models.Manutencao).filter(
-        models.Manutencao.deletado_em != None
-    ).order_by(models.Manutencao.deletado_em.desc()).all()
-
-def restaurar_manutencao(db: Session, id: int, restaurado_por: str):
-    m = db.query(models.Manutencao).filter(models.Manutencao.id == id).first()
-    if not m or m.deletado_em is None:
-        return None
-    log = models.EditLog(
-        manutencao_id=m.id,
-        editado_por=restaurado_por,
-        motivo="Chamado restaurado da lixeira",
-        snapshot=_snapshot(m),
-    )
-    db.add(log)
-    m.deletado_em  = None
-    m.deletado_por = None
-    db.commit()
-    db.refresh(m)
-    return m
-
-def reabrir_manutencao(db: Session, id: int, status: str, reaberto_por: str):
-    m = get_manutencao(db, id)
+@app.post("/manutencoes/{id}/reabrir", response_model=schemas.ManutencaoOut)
+def reabrir(id: int, data: schemas.ReopenRequest, db: Session = Depends(get_db),
+            current_user=Depends(require_gerencia)):
+    m = crud.reabrir_manutencao(db, id, data.status, reaberto_por=current_user.nome)
     if not m:
-        return None
-    log = models.EditLog(
-        manutencao_id=m.id,
-        editado_por=reaberto_por,
-        motivo=f"Chamado reaberto pela gerência",
-        snapshot=_snapshot(m),
-    )
-    db.add(log)
-    m.status           = status
-    m.data_fim         = None
-    m.resultado_reparo = None
-    db.commit()
-    db.refresh(m)
+        raise HTTPException(status_code=404, detail="Não encontrado")
     return m
 
-def get_historico(db: Session, manutencao_id: int):
-    return db.query(models.EditLog).filter(
-        models.EditLog.manutencao_id == manutencao_id
-    ).order_by(models.EditLog.id.desc()).all()
+@app.get("/lixeira", response_model=list[schemas.ManutencaoOut])
+def listar_lixeira(db: Session = Depends(get_db), _=Depends(require_gerencia)):
+    return crud.get_lixeira(db)
 
-def get_equipamentos_usados(db: Session):
-    rows = db.query(models.Manutencao.equipamento).distinct().all()
-    return sorted({r[0] for r in rows if r[0]})
+@app.post("/lixeira/{id}/restaurar", response_model=schemas.ManutencaoOut)
+def restaurar(id: int, db: Session = Depends(get_db), current_user=Depends(require_gerencia)):
+    m = crud.restaurar_manutencao(db, id, restaurado_por=current_user.nome)
+    if not m:
+        raise HTTPException(status_code=404, detail="Não encontrado ou não está na lixeira")
+    return m
 
-# ─── Respostas ─────────────────────────────────────────────────────────────────
-def get_respostas(db: Session, manutencao_id: int):
-    return db.query(models.Resposta).filter(
-        models.Resposta.manutencao_id == manutencao_id
-    ).order_by(models.Resposta.id).all()
+@app.post("/manutencoes/{id}/finalizar", response_model=schemas.ManutencaoOut)
+def finalizar(id: int, data: schemas.FinalizarRequest, db: Session = Depends(get_db),
+              current_user=Depends(get_current_user)):
+    m = crud.finalizar_manutencao(db, id, data, finalizado_por=current_user.nome)
+    if not m:
+        raise HTTPException(status_code=404, detail="Não encontrado")
+    return m
 
-def manutencao_tem_anexo_manutencao(db: Session, manutencao_id: int) -> bool:
-    """Verifica se o perfil 'manutencao' já enviou pelo menos um anexo neste chamado."""
-    return db.query(models.Resposta).filter(
-        models.Resposta.manutencao_id == manutencao_id,
-        models.Resposta.role == "manutencao"
-    ).join(models.AnexoResposta, models.AnexoResposta.resposta_id == models.Resposta.id).first() is not None
+@app.get("/manutencoes/{id}/historico", response_model=list[schemas.EditLogOut])
+def historico(id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
+    return crud.get_historico(db, id)
 
-def create_resposta(db: Session, manutencao_id: int, data: schemas.RespostaCreate, autor: str, role: str):
-    resposta = models.Resposta(
-        manutencao_id=manutencao_id,
-        autor=autor,
-        role=role,
-        texto=data.texto,
-    )
-    db.add(resposta)
-    db.flush()  # gera ID sem commit
-    for arq in data.anexos:
-        anexo_r = models.AnexoResposta(
-            resposta_id=resposta.id,
-            nome=arq.nome,
-            tipo=arq.tipo,
-            tamanho=arq.tamanho,
-            data=arq.data,
-            base64=arq.base64,
-        )
-        db.add(anexo_r)
-    db.commit()
-    db.refresh(resposta)
-    return resposta
+@app.get("/equipamentos/sugestoes")
+def sugestoes(db: Session = Depends(get_db), _=Depends(get_current_user)):
+    return crud.get_equipamentos_usados(db)
 
 # ─── Anexos ────────────────────────────────────────────────────────────────────
-def get_anexos(db: Session, manutencao_id: int):
-    return db.query(models.Anexo).filter(
-        models.Anexo.manutencao_id == manutencao_id
-    ).order_by(models.Anexo.id).all()
+@app.get("/manutencoes/{id}/anexos", response_model=list[schemas.AnexoOut])
+def listar_anexos(id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
+    return crud.get_anexos(db, id)
 
-def create_anexo(db: Session, manutencao_id: int, data: schemas.AnexoCreate):
-    anexo = models.Anexo(manutencao_id=manutencao_id, **data.model_dump())
-    db.add(anexo)
-    db.commit()
-    db.refresh(anexo)
-    return anexo
+@app.post("/manutencoes/{id}/anexos", response_model=schemas.AnexoOut, status_code=201)
+def adicionar_anexo(id: int, data: schemas.AnexoCreate,
+                    db: Session = Depends(get_db), _=Depends(get_current_user)):
+    if not crud.get_manutencao(db, id):
+        raise HTTPException(status_code=404, detail="Manutenção não encontrada")
+    return crud.create_anexo(db, id, data)
 
-def delete_anexo(db: Session, manutencao_id: int, anexo_id: int) -> bool:
-    anexo = db.query(models.Anexo).filter(
-        models.Anexo.id == anexo_id,
-        models.Anexo.manutencao_id == manutencao_id
-    ).first()
-    if not anexo:
-        return False
-    db.delete(anexo)
-    db.commit()
-    return True
+@app.delete("/manutencoes/{id}/anexos/{anexo_id}", status_code=204)
+def remover_anexo(id: int, anexo_id: int,
+                  db: Session = Depends(get_db), _=Depends(get_current_user)):
+    if not crud.delete_anexo(db, id, anexo_id):
+        raise HTTPException(status_code=404, detail="Anexo não encontrado")
 
+# ─── Respostas ────────────────────────────────────────────────────────────────
+@app.get("/manutencoes/{id}/respostas", response_model=list[schemas.RespostaOut])
+def listar_respostas(id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
+    if not crud.get_manutencao(db, id):
+        raise HTTPException(status_code=404, detail="Manutenção não encontrada")
+    return crud.get_respostas(db, id)
 
-# ─── Correção de status incorretos ────────────────────────────────────────────
-def corrigir_status_incorretos(db: Session, novo_status: str, corrigido_por: str):
-    """
-    Localiza manutenções salvas como Concluída sem resultado_reparo
-    (foram marcadas por engano) e corrige para um status ativo.
-    """
-    registros = db.query(models.Manutencao).filter(
-        models.Manutencao.status == "Concluída",
-        models.Manutencao.resultado_reparo == None,
-        models.Manutencao.deletado_em == None,
-    ).all()
-    corrigidos = []
-    for m in registros:
-        log = models.EditLog(
-            manutencao_id=m.id,
-            editado_por=corrigido_por,
-            motivo=f"Correção: status Concluída sem finalização real → {novo_status}",
-            snapshot=_snapshot(m),
-        )
-        db.add(log)
-        m.status   = novo_status
-        m.data_fim = None
-        corrigidos.append(m.id)
-    db.commit()
-    return corrigidos
+@app.post("/manutencoes/{id}/respostas", response_model=schemas.RespostaOut, status_code=201)
+def criar_resposta(id: int, data: schemas.RespostaCreate,
+                   db: Session = Depends(get_db),
+                   current_user=Depends(get_current_user)):
+    # Todos os perfis podem enviar mensagens no chat do equipamento
+    if not crud.get_manutencao(db, id):
+        raise HTTPException(status_code=404, detail="Manutenção não encontrada")
+    if not data.texto and not data.anexos:
+        raise HTTPException(status_code=400, detail="Envie um texto ou anexo.")
+    return crud.create_resposta(db, id, data, autor=current_user.nome, role=current_user.role)
 
-# ─── Chat Global ───────────────────────────────────────────────────────────────
-def get_chat_mensagens(db: Session, desde_id: int = 0):
-    return db.query(models.ChatMensagem).filter(
-        models.ChatMensagem.id > desde_id
-    ).order_by(models.ChatMensagem.id.asc()).all()
+# ─── Chat Global (Suprimentos ↔ Manutenção) ────────────────────────────────────
+CHAT_ROLES = {"observador", "manutencao", "gerencia", "admin", "tecnico"}
 
-def create_chat_mensagem(db: Session, data: schemas.ChatMensagemCreate, autor: str, role: str):
-    msg = models.ChatMensagem(autor=autor, role=role, texto=data.texto)
-    db.add(msg)
-    db.flush()
-    for arq in data.anexos:
-        db.add(models.ChatAnexo(
-            mensagem_id=msg.id,
-            nome=arq.nome, tipo=arq.tipo,
-            tamanho=arq.tamanho, data=arq.data, base64=arq.base64,
-        ))
-    db.commit()
-    db.refresh(msg)
-    return msg
+@app.get("/chat", response_model=list[schemas.ChatMensagemOut])
+def listar_chat(desde_id: int = 0, db: Session = Depends(get_db),
+                _=Depends(get_current_user)):
+    return crud.get_chat_mensagens(db, desde_id=desde_id)
+
+@app.post("/chat", response_model=schemas.ChatMensagemOut, status_code=201)
+def enviar_chat(data: schemas.ChatMensagemCreate,
+                db: Session = Depends(get_db),
+                current_user=Depends(get_current_user)):
+    if not data.texto and not data.anexos:
+        raise HTTPException(status_code=400, detail="Envie um texto ou anexo.")
+    return crud.create_chat_mensagem(db, data, autor=current_user.nome, role=current_user.role)
