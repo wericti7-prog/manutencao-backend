@@ -78,6 +78,7 @@ def login(request: Request, form: OAuth2PasswordRequestForm = Depends(), db: Ses
     user = crud.authenticate_user(db, form.username, form.password)
     if not user:
         raise HTTPException(status_code=401, detail="Usuário ou senha incorretos")
+    crud.registrar_acesso(db, user)
     token = auth.create_token({"sub": user.username, "nome": user.nome, "role": user.role})
     return {"access_token": token, "token_type": "bearer",
             "nome": user.nome, "username": user.username, "role": user.role}

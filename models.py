@@ -10,8 +10,9 @@ class Usuario(Base):
     username   = Column(String(50), unique=True, nullable=False, index=True)
     nome       = Column(String(100), nullable=False)
     senha_hash = Column(String(200), nullable=False)
-    role       = Column(String(20), default="tecnico")   # tecnico | gerencia | admin
-    criado_em  = Column(DateTime(timezone=True), server_default=func.now())
+    role         = Column(String(20), default="tecnico")   # tecnico | gerencia | admin
+    criado_em    = Column(DateTime(timezone=True), server_default=func.now())
+    ultimo_acesso = Column(DateTime(timezone=True), nullable=True)
 
 class Manutencao(Base):
     __tablename__ = "manutencoes"

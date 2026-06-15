@@ -46,6 +46,10 @@ def authenticate_user(db: Session, username: str, password: str):
         return None
     return user
 
+def registrar_acesso(db: Session, user: models.Usuario):
+    user.ultimo_acesso = datetime.utcnow()
+    db.commit()
+
 def create_user(db: Session, data: schemas.UserCreate):
     user = models.Usuario(
         username=data.username.lower().strip(),

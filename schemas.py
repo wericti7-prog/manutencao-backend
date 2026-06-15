@@ -27,11 +27,12 @@ class UserCreate(BaseModel):
     role:      str = Field("tecnico", pattern="^(tecnico|manutencao|observador|gerencia|admin)$")
 
 class UserOut(BaseModel):
-    id:        int
-    username:  str
-    nome:      str
-    role:      str
-    criado_em: Optional[datetime]
+    id:            int
+    username:      str
+    nome:          str
+    role:          str
+    criado_em:     Optional[datetime]
+    ultimo_acesso: Optional[datetime]
 
     class Config:
         from_attributes = True
