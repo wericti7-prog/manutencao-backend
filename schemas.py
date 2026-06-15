@@ -32,7 +32,8 @@ class LogAcessoOut(BaseModel):
     class Config:
         from_attributes = True
 
-class UserOut(BaseModel):    id:            int
+class UserOut(BaseModel):
+    id:            int
     username:      str
     nome:          str
     role:          str
