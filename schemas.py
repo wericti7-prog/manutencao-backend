@@ -26,8 +26,13 @@ class UserCreate(BaseModel):
     senha:     str = Field(..., min_length=6)
     role:      str = Field("tecnico", pattern="^(tecnico|manutencao|observador|gerencia|admin)$")
 
-class UserOut(BaseModel):
-    id:            int
+class LogAcessoOut(BaseModel):
+    id:          int
+    acessado_em: Optional[datetime]
+    class Config:
+        from_attributes = True
+
+class UserOut(BaseModel):    id:            int
     username:      str
     nome:          str
     role:          str

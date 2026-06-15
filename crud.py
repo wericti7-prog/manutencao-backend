@@ -47,8 +47,22 @@ def authenticate_user(db: Session, username: str, password: str):
     return user
 
 def registrar_acesso(db: Session, user: models.Usuario):
-    user.ultimo_acesso = datetime.utcnow()
+    agora = datetime.utcnow()
+    user.ultimo_acesso = agora
+    db.add(models.LogAcesso(usuario_id=user.id, acessado_em=agora))
+    # Mantém apenas os últimos 10 registros por usuário
+    logs = db.query(models.LogAcesso).filter(
+        models.LogAcesso.usuario_id == user.id
+    ).order_by(models.LogAcesso.id.desc()).all()
+    if len(logs) > 10:
+        for log_antigo in logs[10:]:
+            db.delete(log_antigo)
     db.commit()
+
+def get_log_acessos(db: Session, usuario_id: int):
+    return db.query(models.LogAcesso).filter(
+        models.LogAcesso.usuario_id == usuario_id
+    ).order_by(models.LogAcesso.id.desc()).limit(10).all()
 
 def create_user(db: Session, data: schemas.UserCreate):
     user = models.Usuario(

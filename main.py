@@ -115,6 +115,10 @@ def remover_usuario(user_id: int, db: Session = Depends(get_db), _=Depends(requi
     if not crud.delete_user(db, user_id):
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
 
+@app.get("/usuarios/{user_id}/acessos", response_model=list[schemas.LogAcessoOut])
+def historico_acessos(user_id: int, db: Session = Depends(get_db), _=Depends(require_gerencia)):
+    return crud.get_log_acessos(db, user_id)
+
 # ─── Manutenções ───────────────────────────────────────────────────────────────
 @app.get("/manutencoes", response_model=list[schemas.ManutencaoOut])
 def listar(

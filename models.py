@@ -14,6 +14,18 @@ class Usuario(Base):
     criado_em    = Column(DateTime(timezone=True), server_default=func.now())
     ultimo_acesso = Column(DateTime(timezone=True), nullable=True)
 
+    log_acessos = relationship("LogAcesso", back_populates="usuario",
+                               cascade="all, delete-orphan", order_by="LogAcesso.id.desc()")
+
+class LogAcesso(Base):
+    __tablename__ = "log_acessos"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False)
+    acessado_em = Column(DateTime(timezone=True), server_default=func.now())
+
+    usuario = relationship("Usuario", back_populates="log_acessos")
+
 class Manutencao(Base):
     __tablename__ = "manutencoes"
 
