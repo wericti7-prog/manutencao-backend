@@ -44,6 +44,7 @@ class Manutencao(Base):
     substituto         = Column(String(300), nullable=True)   # equipamento substituto enviado
     data_inicio        = Column(DateTime(timezone=True))
     data_fim           = Column(DateTime(timezone=True))
+    prazo              = Column(DateTime(timezone=True), nullable=True)   # prazo esperado de conclusão
     criado_por         = Column(String(100))
     criado_em          = Column(DateTime(timezone=True), server_default=func.now())
     atualizado_em      = Column(DateTime(timezone=True), onupdate=func.now())

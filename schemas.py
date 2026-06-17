@@ -60,6 +60,7 @@ class ManutencaoCreate(BaseModel):
     custo:        float = 0
     pecas:        Optional[str] = None
     substituto:   Optional[str] = None
+    prazo:        Optional[datetime] = None
     data_inicio:  Optional[datetime] = None
     data_fim:     Optional[datetime] = None
 
@@ -73,6 +74,7 @@ class ManutencaoUpdate(BaseModel):
     custo:        Optional[float] = None
     pecas:        Optional[str] = None
     substituto:   Optional[str] = None
+    prazo:        Optional[datetime] = None
     data_inicio:  Optional[datetime] = None
     data_fim:     Optional[datetime] = None
 
@@ -99,6 +101,7 @@ class ManutencaoOut(BaseModel):
     substituto:         Optional[str]
     data_inicio:        Optional[datetime]
     data_fim:           Optional[datetime]
+    prazo:              Optional[datetime]
     criado_por:         Optional[str]
     criado_em:          Optional[datetime]
     atualizado_em:      Optional[datetime]
