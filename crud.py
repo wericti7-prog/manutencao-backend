@@ -114,6 +114,8 @@ def get_manutencoes(db: Session, status=None, localizacao=None, busca=None):
             models.Manutencao.equipamento.ilike(term),
             models.Manutencao.tecnico.ilike(term),
             models.Manutencao.problema.ilike(term),
+            models.Manutencao.numero.ilike(term),
+            models.Manutencao.localizacao.ilike(term),
         ))
     return q.order_by(models.Manutencao.id.desc()).all()
 
