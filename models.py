@@ -112,6 +112,15 @@ class AnexoResposta(Base):
 
     resposta = relationship("Resposta", back_populates="anexos_resposta")
 
+class AguardandoColeta(Base):
+    __tablename__ = "aguardando_coleta"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    equipamento = Column(String(200), nullable=False)
+    localizacao = Column(String(100))              # ex: Loja 001
+    criado_por  = Column(String(100))
+    criado_em   = Column(DateTime(timezone=True), server_default=func.now())
+
 class ChatMensagem(Base):
     __tablename__ = "chat_mensagens"
 

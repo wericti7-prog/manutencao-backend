@@ -332,6 +332,32 @@ def corrigir_status_incorretos(db: Session, novo_status: str, corrigido_por: str
     db.commit()
     return corrigidos
 
+# ─── Aguardando Coleta ─────────────────────────────────────────────────────────
+def get_aguardando_coleta(db: Session):
+    return db.query(models.AguardandoColeta).order_by(models.AguardandoColeta.id.desc()).all()
+
+def get_aguardando_coleta_by_id(db: Session, id: int):
+    return db.query(models.AguardandoColeta).filter(models.AguardandoColeta.id == id).first()
+
+def create_aguardando_coleta(db: Session, data: schemas.AguardandoColetaCreate, criado_por: str):
+    item = models.AguardandoColeta(
+        equipamento=data.equipamento,
+        localizacao=data.localizacao,
+        criado_por=criado_por,
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+def delete_aguardando_coleta(db: Session, id: int) -> bool:
+    item = get_aguardando_coleta_by_id(db, id)
+    if not item:
+        return False
+    db.delete(item)
+    db.commit()
+    return True
+
 # ─── Chat Global ───────────────────────────────────────────────────────────────
 def get_chat_mensagens(db: Session, desde_id: int = 0):
     return db.query(models.ChatMensagem).filter(

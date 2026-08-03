@@ -93,6 +93,11 @@ def require_gerencia(current_user=Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Acesso restrito à gerência")
     return current_user
 
+def require_tecnico_ou_gerencia(current_user=Depends(get_current_user)):
+    if current_user.role not in ("tecnico", "gerencia", "admin"):
+        raise HTTPException(status_code=403, detail="Acesso restrito a técnicos e gerência")
+    return current_user
+
 @app.get("/usuarios", response_model=list[schemas.UserOut])
 def listar_usuarios(db: Session = Depends(get_db), _=Depends(require_gerencia)):
     return crud.get_all_users(db)
@@ -225,6 +230,38 @@ def criar_resposta(id: int, data: schemas.RespostaCreate,
     if not data.texto and not data.anexos:
         raise HTTPException(status_code=400, detail="Envie um texto ou anexo.")
     return crud.create_resposta(db, id, data, autor=current_user.nome, role=current_user.role)
+
+# ─── Aguardando Coleta ──────────────────────────────────────────────────────────
+@app.get("/aguardando-coleta", response_model=list[schemas.AguardandoColetaOut])
+def listar_aguardando_coleta(db: Session = Depends(get_db), _=Depends(require_tecnico_ou_gerencia)):
+    return crud.get_aguardando_coleta(db)
+
+@app.post("/aguardando-coleta", response_model=schemas.AguardandoColetaOut, status_code=201)
+def criar_aguardando_coleta(data: schemas.AguardandoColetaCreate, db: Session = Depends(get_db),
+                            current_user=Depends(require_tecnico_ou_gerencia)):
+    return crud.create_aguardando_coleta(db, data, criado_por=current_user.nome)
+
+@app.delete("/aguardando-coleta/{id}", status_code=204)
+def remover_aguardando_coleta(id: int, db: Session = Depends(get_db), _=Depends(require_tecnico_ou_gerencia)):
+    if not crud.delete_aguardando_coleta(db, id):
+        raise HTTPException(status_code=404, detail="Não encontrado")
+
+@app.post("/aguardando-coleta/{id}/enviar", response_model=schemas.ManutencaoOut, status_code=201)
+def enviar_para_manutencao(id: int, db: Session = Depends(get_db),
+                           current_user=Depends(require_tecnico_ou_gerencia)):
+    item = crud.get_aguardando_coleta_by_id(db, id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Não encontrado")
+    dados = schemas.ManutencaoCreate(
+        equipamento=item.equipamento,
+        localizacao=item.localizacao,
+        tecnico=current_user.nome,
+        status="Aguardando aprovação",
+        problema="Equipamento coletado da sala de aguardando coleta para manutenção.",
+    )
+    m = crud.create_manutencao(db, dados, criado_por=current_user.nome)
+    crud.delete_aguardando_coleta(db, id)
+    return m
 
 # ─── Chat Global (Suprimentos ↔ Manutenção) ────────────────────────────────────
 CHAT_ROLES = {"observador", "manutencao", "gerencia", "admin", "tecnico"}

@@ -186,6 +186,21 @@ class EditLogOut(BaseModel):
     class Config:
         from_attributes = True
 
+# ─── Aguardando Coleta ─────────────────────────────────────────────────────────
+class AguardandoColetaCreate(BaseModel):
+    equipamento: str = Field(..., min_length=1)
+    localizacao: Optional[str] = None
+
+class AguardandoColetaOut(BaseModel):
+    id:          int
+    equipamento: str
+    localizacao: Optional[str]
+    criado_por:  Optional[str]
+    criado_em:   Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
 # ─── Chat Global ───────────────────────────────────────────────────────────────
 class ChatAnexoCreate(BaseModel):
     nome:    str
