@@ -256,7 +256,7 @@ def enviar_para_manutencao(id: int, db: Session = Depends(get_db),
         equipamento=item.equipamento,
         localizacao=item.localizacao,
         tecnico=current_user.nome,
-        status="Aguardando aprovação",
+        status="Em Manutenção",
         problema="Equipamento coletado da sala de aguardando coleta para manutenção.",
     )
     m = crud.create_manutencao(db, dados, criado_por=current_user.nome)
