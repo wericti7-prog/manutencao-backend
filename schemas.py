@@ -244,12 +244,14 @@ class EstoqueItemCreate(BaseModel):
     unidade:        str = Field("un", max_length=20)
     quantidade:     int = Field(0, ge=0)
     estoque_minimo: int = Field(0, ge=0)
+    foto:           Optional[str] = None
 
 class EstoqueItemUpdate(BaseModel):
     nome:           Optional[str] = None
     categoria:      Optional[str] = None
     unidade:        Optional[str] = None
     estoque_minimo: Optional[int] = None
+    foto:           Optional[str] = None
 
 class EstoqueItemOut(BaseModel):
     id:             int
@@ -258,6 +260,7 @@ class EstoqueItemOut(BaseModel):
     unidade:        str
     quantidade:     int
     estoque_minimo: int
+    foto:           Optional[str] = None
     criado_por:     Optional[str]
     criado_em:      Optional[datetime]
     atualizado_em:  Optional[datetime]
@@ -277,6 +280,7 @@ class EstoqueMovimentoOut(BaseModel):
     motivo:     Optional[str]
     usuario:    str
     criado_em:  Optional[datetime]
+    item_nome:  Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -155,6 +155,7 @@ class EstoqueItem(Base):
     unidade        = Column(String(20), default="un")
     quantidade     = Column(Integer, default=0)
     estoque_minimo = Column(Integer, default=0)
+    foto           = Column(Text, nullable=True)     # base64 da imagem
     criado_por     = Column(String(100))
     criado_em      = Column(DateTime(timezone=True), server_default=func.now())
     atualizado_em  = Column(DateTime(timezone=True), onupdate=func.now())
