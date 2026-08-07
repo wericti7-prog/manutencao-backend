@@ -145,3 +145,32 @@ class ChatAnexo(Base):
     criado_em   = Column(DateTime(timezone=True), server_default=func.now())
 
     mensagem = relationship("ChatMensagem", back_populates="anexos")
+
+class EstoqueItem(Base):
+    __tablename__ = "estoque_itens"
+
+    id             = Column(Integer, primary_key=True, index=True)
+    nome           = Column(String(200), nullable=False, index=True)
+    categoria      = Column(String(100), nullable=True)
+    unidade        = Column(String(20), default="un")
+    quantidade     = Column(Integer, default=0)
+    estoque_minimo = Column(Integer, default=0)
+    criado_por     = Column(String(100))
+    criado_em      = Column(DateTime(timezone=True), server_default=func.now())
+    atualizado_em  = Column(DateTime(timezone=True), onupdate=func.now())
+
+    movimentos = relationship("EstoqueMovimento", back_populates="item",
+                              cascade="all, delete-orphan", order_by="EstoqueMovimento.id.desc()")
+
+class EstoqueMovimento(Base):
+    __tablename__ = "estoque_movimentos"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    item_id    = Column(Integer, ForeignKey("estoque_itens.id", ondelete="CASCADE"), nullable=False)
+    tipo       = Column(String(10), nullable=False)     # entrada | saida
+    quantidade = Column(Integer, nullable=False)
+    motivo     = Column(String(300), nullable=True)
+    usuario    = Column(String(100), nullable=False)
+    criado_em  = Column(DateTime(timezone=True), server_default=func.now())
+
+    item = relationship("EstoqueItem", back_populates="movimentos")

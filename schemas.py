@@ -236,3 +236,47 @@ class ChatMensagemOut(BaseModel):
     anexos:    list[ChatAnexoOut] = []
     class Config:
         from_attributes = True
+
+# ─── Estoque ───────────────────────────────────────────────────────────────────
+class EstoqueItemCreate(BaseModel):
+    nome:           str = Field(..., min_length=1, max_length=200)
+    categoria:      Optional[str] = None
+    unidade:        str = Field("un", max_length=20)
+    quantidade:     int = Field(0, ge=0)
+    estoque_minimo: int = Field(0, ge=0)
+
+class EstoqueItemUpdate(BaseModel):
+    nome:           Optional[str] = None
+    categoria:      Optional[str] = None
+    unidade:        Optional[str] = None
+    estoque_minimo: Optional[int] = None
+
+class EstoqueItemOut(BaseModel):
+    id:             int
+    nome:           str
+    categoria:      Optional[str]
+    unidade:        str
+    quantidade:     int
+    estoque_minimo: int
+    criado_por:     Optional[str]
+    criado_em:      Optional[datetime]
+    atualizado_em:  Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+class EstoqueMovimentoCreate(BaseModel):
+    tipo:       str = Field(..., pattern="^(entrada|saida)$")
+    quantidade: int = Field(..., gt=0)
+    motivo:     Optional[str] = None
+
+class EstoqueMovimentoOut(BaseModel):
+    id:         int
+    tipo:       str
+    quantidade: int
+    motivo:     Optional[str]
+    usuario:    str
+    criado_em:  Optional[datetime]
+
+    class Config:
+        from_attributes = True

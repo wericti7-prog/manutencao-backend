@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from datetime import datetime
 import models, schemas, auth
 
@@ -377,3 +377,82 @@ def create_chat_mensagem(db: Session, data: schemas.ChatMensagemCreate, autor: s
     db.commit()
     db.refresh(msg)
     return msg
+
+# ─── Estoque ───────────────────────────────────────────────────────────────────
+def get_estoque_items(db: Session, busca=None, categoria=None):
+    q = db.query(models.EstoqueItem)
+    if categoria:
+        q = q.filter(models.EstoqueItem.categoria == categoria)
+    if busca:
+        term = f"%{busca}%"
+        q = q.filter(or_(
+            models.EstoqueItem.nome.ilike(term),
+            models.EstoqueItem.categoria.ilike(term),
+        ))
+    return q.order_by(models.EstoqueItem.nome).all()
+
+def get_estoque_item(db: Session, id: int):
+    return db.query(models.EstoqueItem).filter(models.EstoqueItem.id == id).first()
+
+def get_estoque_item_by_nome(db: Session, nome: str):
+    return db.query(models.EstoqueItem).filter(
+        func.lower(models.EstoqueItem.nome) == nome.lower().strip()
+    ).first()
+
+def create_estoque_item(db: Session, data: schemas.EstoqueItemCreate, criado_por: str):
+    item = models.EstoqueItem(
+        nome=data.nome.strip(),
+        categoria=data.categoria,
+        unidade=data.unidade or "un",
+        quantidade=data.quantidade,
+        estoque_minimo=data.estoque_minimo,
+        criado_por=criado_por,
+    )
+    db.add(item)
+    db.flush()
+    if data.quantidade > 0:
+        db.add(models.EstoqueMovimento(
+            item_id=item.id, tipo="entrada", quantidade=data.quantidade,
+            motivo="Cadastro inicial do item", usuario=criado_por,
+        ))
+    db.commit()
+    db.refresh(item)
+    return item
+
+def update_estoque_item(db: Session, id: int, data: schemas.EstoqueItemUpdate):
+    item = get_estoque_item(db, id)
+    if not item:
+        return None
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(item, field, value)
+    db.commit()
+    db.refresh(item)
+    return item
+
+def delete_estoque_item(db: Session, id: int) -> bool:
+    item = get_estoque_item(db, id)
+    if not item:
+        return False
+    db.delete(item)
+    db.commit()
+    return True
+
+def create_estoque_movimento(db: Session, item: models.EstoqueItem,
+                             data: schemas.EstoqueMovimentoCreate, usuario: str):
+    mov = models.EstoqueMovimento(
+        item_id=item.id, tipo=data.tipo, quantidade=data.quantidade,
+        motivo=data.motivo, usuario=usuario,
+    )
+    db.add(mov)
+    if data.tipo == "entrada":
+        item.quantidade += data.quantidade
+    else:
+        item.quantidade -= data.quantidade
+    db.commit()
+    db.refresh(item)
+    return item
+
+def get_estoque_movimentos(db: Session, item_id: int):
+    return db.query(models.EstoqueMovimento).filter(
+        models.EstoqueMovimento.item_id == item_id
+    ).order_by(models.EstoqueMovimento.id.desc()).all()

@@ -278,3 +278,49 @@ def enviar_chat(data: schemas.ChatMensagemCreate,
     if not data.texto and not data.anexos:
         raise HTTPException(status_code=400, detail="Envie um texto ou anexo.")
     return crud.create_chat_mensagem(db, data, autor=current_user.nome, role=current_user.role)
+
+# ─── Estoque (Técnicos e Gerência) ─────────────────────────────────────────────
+@app.get("/estoque", response_model=list[schemas.EstoqueItemOut])
+def listar_estoque(
+    busca: Optional[str] = None,
+    categoria: Optional[str] = None,
+    db: Session = Depends(get_db),
+    _=Depends(require_tecnico_ou_gerencia)
+):
+    return crud.get_estoque_items(db, busca=busca, categoria=categoria)
+
+@app.post("/estoque", response_model=schemas.EstoqueItemOut, status_code=201)
+def criar_item_estoque(data: schemas.EstoqueItemCreate, db: Session = Depends(get_db),
+                       current_user=Depends(require_tecnico_ou_gerencia)):
+    if crud.get_estoque_item_by_nome(db, data.nome):
+        raise HTTPException(status_code=400, detail="Já existe um item com esse nome no estoque")
+    return crud.create_estoque_item(db, data, criado_por=current_user.nome)
+
+@app.put("/estoque/{id}", response_model=schemas.EstoqueItemOut)
+def editar_item_estoque(id: int, data: schemas.EstoqueItemUpdate, db: Session = Depends(get_db),
+                        _=Depends(require_tecnico_ou_gerencia)):
+    item = crud.update_estoque_item(db, id, data)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item não encontrado")
+    return item
+
+@app.delete("/estoque/{id}", status_code=204)
+def excluir_item_estoque(id: int, db: Session = Depends(get_db), _=Depends(require_tecnico_ou_gerencia)):
+    if not crud.delete_estoque_item(db, id):
+        raise HTTPException(status_code=404, detail="Item não encontrado")
+
+@app.post("/estoque/{id}/movimentar", response_model=schemas.EstoqueItemOut)
+def movimentar_estoque(id: int, data: schemas.EstoqueMovimentoCreate, db: Session = Depends(get_db),
+                       current_user=Depends(require_tecnico_ou_gerencia)):
+    item = crud.get_estoque_item(db, id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item não encontrado")
+    if data.tipo == "saida" and data.quantidade > item.quantidade:
+        raise HTTPException(status_code=400, detail=f"Estoque insuficiente. Disponível: {item.quantidade} {item.unidade}")
+    return crud.create_estoque_movimento(db, item, data, usuario=current_user.nome)
+
+@app.get("/estoque/{id}/movimentos", response_model=list[schemas.EstoqueMovimentoOut])
+def historico_estoque(id: int, db: Session = Depends(get_db), _=Depends(require_tecnico_ou_gerencia)):
+    if not crud.get_estoque_item(db, id):
+        raise HTTPException(status_code=404, detail="Item não encontrado")
+    return crud.get_estoque_movimentos(db, id)
