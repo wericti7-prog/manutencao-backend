@@ -324,3 +324,8 @@ def historico_estoque(id: int, db: Session = Depends(get_db), _=Depends(require_
     if not crud.get_estoque_item(db, id):
         raise HTTPException(status_code=404, detail="Item não encontrado")
     return crud.get_estoque_movimentos(db, id)
+
+@app.get("/estoque/movimentos", response_model=list[schemas.EstoqueMovimentoOut])
+def historico_estoque_geral(item_id: Optional[int] = None, db: Session = Depends(get_db),
+                            _=Depends(require_tecnico_ou_gerencia)):
+    return crud.get_estoque_movimentos(db, item_id)

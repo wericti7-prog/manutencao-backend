@@ -406,6 +406,7 @@ def create_estoque_item(db: Session, data: schemas.EstoqueItemCreate, criado_por
         unidade=data.unidade or "un",
         quantidade=data.quantidade,
         estoque_minimo=data.estoque_minimo,
+        foto=data.foto,
         criado_por=criado_por,
     )
     db.add(item)
@@ -452,7 +453,15 @@ def create_estoque_movimento(db: Session, item: models.EstoqueItem,
     db.refresh(item)
     return item
 
-def get_estoque_movimentos(db: Session, item_id: int):
-    return db.query(models.EstoqueMovimento).filter(
-        models.EstoqueMovimento.item_id == item_id
-    ).order_by(models.EstoqueMovimento.id.desc()).all()
+def get_estoque_movimentos(db: Session, item_id: int = None):
+    q = db.query(models.EstoqueMovimento, models.EstoqueItem.nome).join(
+        models.EstoqueItem, models.EstoqueMovimento.item_id == models.EstoqueItem.id
+    )
+    if item_id:
+        q = q.filter(models.EstoqueMovimento.item_id == item_id)
+    q = q.order_by(models.EstoqueMovimento.id.desc())
+    resultados = []
+    for mov, nome_item in q.all():
+        mov.item_nome = nome_item
+        resultados.append(mov)
+    return resultados
