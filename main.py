@@ -98,6 +98,11 @@ def require_tecnico_ou_gerencia(current_user=Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Acesso restrito a técnicos e gerência")
     return current_user
 
+def require_ver_estoque(current_user=Depends(get_current_user)):
+    if current_user.role not in ("tecnico", "gerencia", "admin", "suprimentos"):
+        raise HTTPException(status_code=403, detail="Acesso restrito ao estoque")
+    return current_user
+
 @app.get("/usuarios", response_model=list[schemas.UserOut])
 def listar_usuarios(db: Session = Depends(get_db), _=Depends(require_gerencia)):
     return crud.get_all_users(db)
@@ -285,7 +290,7 @@ def listar_estoque(
     busca: Optional[str] = None,
     categoria: Optional[str] = None,
     db: Session = Depends(get_db),
-    _=Depends(require_tecnico_ou_gerencia)
+    _=Depends(require_ver_estoque)
 ):
     return crud.get_estoque_items(db, busca=busca, categoria=categoria)
 
@@ -320,12 +325,12 @@ def movimentar_estoque(id: int, data: schemas.EstoqueMovimentoCreate, db: Sessio
     return crud.create_estoque_movimento(db, item, data, usuario=current_user.nome)
 
 @app.get("/estoque/{id}/movimentos", response_model=list[schemas.EstoqueMovimentoOut])
-def historico_estoque(id: int, db: Session = Depends(get_db), _=Depends(require_tecnico_ou_gerencia)):
+def historico_estoque(id: int, db: Session = Depends(get_db), _=Depends(require_ver_estoque)):
     if not crud.get_estoque_item(db, id):
         raise HTTPException(status_code=404, detail="Item não encontrado")
     return crud.get_estoque_movimentos(db, id)
 
 @app.get("/estoque/movimentos", response_model=list[schemas.EstoqueMovimentoOut])
 def historico_estoque_geral(item_id: Optional[int] = None, db: Session = Depends(get_db),
-                            _=Depends(require_tecnico_ou_gerencia)):
+                            _=Depends(require_ver_estoque)):
     return crud.get_estoque_movimentos(db, item_id)
