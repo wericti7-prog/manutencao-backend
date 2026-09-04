@@ -94,13 +94,16 @@ def require_gerencia(current_user=Depends(get_current_user)):
     return current_user
 
 def require_tecnico_ou_gerencia(current_user=Depends(get_current_user)):
-    if current_user.role not in ("tecnico", "gerencia", "admin"):
+    if current_user.role not in ("tecnico", "gerencia", "admin", "observador"):
         raise HTTPException(status_code=403, detail="Acesso restrito a técnicos e gerência")
     return current_user
 
 def require_ver_estoque(current_user=Depends(get_current_user)):
-    if current_user.role not in ("tecnico", "gerencia", "admin", "suprimentos"):
-        raise HTTPException(status_code=403, detail="Acesso restrito ao estoque")
+    if current_user.role not in ("tecnico", "gerencia", "admin", "observador"):
+        raise HTTPException(
+            status_code=403,
+            detail="Acesso restrito ao estoque"
+        )
     return current_user
 
 @app.get("/usuarios", response_model=list[schemas.UserOut])
