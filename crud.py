@@ -465,3 +465,18 @@ def get_estoque_movimentos(db: Session, item_id: int = None):
         mov.item_nome = nome_item
         resultados.append(mov)
     return resultados
+
+def delete_estoque_movimento(db: Session, mov_id: int) -> bool:
+    mov = db.query(models.EstoqueMovimento).filter(models.EstoqueMovimento.id == mov_id).first()
+    if not mov:
+        return False
+    item = db.query(models.EstoqueItem).filter(models.EstoqueItem.id == mov.item_id).first()
+    if item:
+        # Desfaz o efeito da movimentação no saldo
+        if mov.tipo == "entrada":
+            item.quantidade -= mov.quantidade
+        else:
+            item.quantidade += mov.quantidade
+    db.delete(mov)
+    db.commit()
+    return True

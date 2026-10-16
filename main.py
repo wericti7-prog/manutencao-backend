@@ -337,3 +337,11 @@ def historico_estoque(id: int, db: Session = Depends(get_db), _=Depends(require_
 def historico_estoque_geral(item_id: Optional[int] = None, db: Session = Depends(get_db),
                             _=Depends(require_ver_estoque)):
     return crud.get_estoque_movimentos(db, item_id)
+
+@app.delete("/estoque/movimentos/{mov_id}", status_code=204)
+def excluir_movimento_estoque(mov_id: int, db: Session = Depends(get_db),
+                              current_user=Depends(get_current_user)):
+    if current_user.role not in ("gerencia", "admin"):
+        raise HTTPException(status_code=403, detail="Apenas gerência pode excluir movimentações")
+    if not crud.delete_estoque_movimento(db, mov_id):
+        raise HTTPException(status_code=404, detail="Movimentação não encontrada")
