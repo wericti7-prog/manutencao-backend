@@ -191,6 +191,10 @@ class AguardandoColetaCreate(BaseModel):
     equipamento: str = Field(..., min_length=1)
     localizacao: Optional[str] = None
 
+class AguardandoColetaUpdate(BaseModel):
+    equipamento: Optional[str] = Field(None, min_length=1)
+    localizacao: Optional[str] = None
+
 class AguardandoColetaOut(BaseModel):
     id:          int
     equipamento: str

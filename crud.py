@@ -350,6 +350,19 @@ def create_aguardando_coleta(db: Session, data: schemas.AguardandoColetaCreate, 
     db.refresh(item)
     return item
 
+def update_aguardando_coleta(db: Session, id: int, data: schemas.AguardandoColetaUpdate):
+    item = get_aguardando_coleta_by_id(db, id)
+    if not item:
+        return None
+    campos = data.model_dump(exclude_unset=True) if hasattr(data, "model_dump") else data.dict(exclude_unset=True)
+    if "equipamento" in campos and campos["equipamento"] is not None:
+        item.equipamento = campos["equipamento"]
+    if "localizacao" in campos:
+        item.localizacao = campos["localizacao"]
+    db.commit()
+    db.refresh(item)
+    return item
+
 def delete_aguardando_coleta(db: Session, id: int) -> bool:
     item = get_aguardando_coleta_by_id(db, id)
     if not item:

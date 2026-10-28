@@ -249,6 +249,14 @@ def criar_aguardando_coleta(data: schemas.AguardandoColetaCreate, db: Session = 
                             current_user=Depends(require_tecnico_ou_gerencia)):
     return crud.create_aguardando_coleta(db, data, criado_por=current_user.nome)
 
+@app.put("/aguardando-coleta/{id}", response_model=schemas.AguardandoColetaOut)
+def atualizar_aguardando_coleta(id: int, data: schemas.AguardandoColetaUpdate,
+                                db: Session = Depends(get_db), _=Depends(require_tecnico_ou_gerencia)):
+    item = crud.update_aguardando_coleta(db, id, data)
+    if not item:
+        raise HTTPException(status_code=404, detail="Equipamento não encontrado")
+    return item
+
 @app.delete("/aguardando-coleta/{id}", status_code=204)
 def remover_aguardando_coleta(id: int, db: Session = Depends(get_db), _=Depends(require_tecnico_ou_gerencia)):
     if not crud.delete_aguardando_coleta(db, id):
