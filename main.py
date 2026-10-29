@@ -287,6 +287,14 @@ def listar_chat(desde_id: int = 0, db: Session = Depends(get_db),
                 _=Depends(get_current_user)):
     return crud.get_chat_mensagens(db, desde_id=desde_id)
 
+@app.delete("/chat/{mensagem_id}", status_code=204)
+def excluir_chat(mensagem_id: int, db: Session = Depends(get_db),
+                 current_user=Depends(get_current_user)):
+    if current_user.role != "gerencia":
+        raise HTTPException(status_code=403, detail="Apenas a gerência pode apagar mensagens do chat")
+    if not crud.delete_chat_mensagem(db, mensagem_id):
+        raise HTTPException(status_code=404, detail="Mensagem não encontrada")
+
 @app.post("/chat", response_model=schemas.ChatMensagemOut, status_code=201)
 def enviar_chat(data: schemas.ChatMensagemCreate,
                 db: Session = Depends(get_db),

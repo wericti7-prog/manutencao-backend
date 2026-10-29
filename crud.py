@@ -377,6 +377,14 @@ def get_chat_mensagens(db: Session, desde_id: int = 0):
         models.ChatMensagem.id > desde_id
     ).order_by(models.ChatMensagem.id.asc()).all()
 
+def delete_chat_mensagem(db: Session, mensagem_id: int) -> bool:
+    msg = db.query(models.ChatMensagem).filter(models.ChatMensagem.id == mensagem_id).first()
+    if not msg:
+        return False
+    db.delete(msg)  # anexos são removidos em cascata
+    db.commit()
+    return True
+
 def create_chat_mensagem(db: Session, data: schemas.ChatMensagemCreate, autor: str, role: str):
     msg = models.ChatMensagem(autor=autor, role=role, texto=data.texto)
     db.add(msg)
